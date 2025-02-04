@@ -1,9 +1,22 @@
 # isometry
 Draw an isometric image consisting of cubes according to instructions in a text file. Requires the [Pillow](https://python-pillow.org) module.
 
+Table of contents:
+* [Axes](#axes)
+* [Command line arguments](#command-line-arguments)
+* [Input file](#input-file)
+* [More settings](#more-settings)
+* [Other files](#other-files)
+
+## Axes
+* X+ = right
+* Y+ = towards viewer
+* Z+ = up
+
 ## Command line arguments
-* input file (see below)
-* output file (PNG, RGB without alpha)
+* input file (required, see below)
+* output file (required, PNG, RGB without alpha)
+* axes to reverse (optional; a string consisting of one or more of `X`, `Y` and `Z`; case insensitive)
 
 ## Input file
 * Encoding: ASCII.
