@@ -4,11 +4,11 @@ COORD_TYPE = 2  # 1 or 2; see README.md
 
 # the building block (a single cube); for coordinate type 2,
 # width/depth/height = how much X/Y/Z affects 2D coordinates
-CUBE_WIDTH  = 10
-CUBE_DEPTH  =  5
-CUBE_HEIGHT =  8
-CUBE_FILE_BASE = (
-    f"minicube-t{COORD_TYPE}-w{CUBE_WIDTH}-d{CUBE_DEPTH}-h{CUBE_HEIGHT}"
+CUBE_WIDTH  = 16
+CUBE_DEPTH  =  8
+CUBE_HEIGHT = 18
+CUBE_FILE = (
+    f"minicube-t{COORD_TYPE}-w{CUBE_WIDTH}-d{CUBE_DEPTH}-h{CUBE_HEIGHT}.png"
 )
 if COORD_TYPE == 1:
     CUBE_IMG_WIDTH  = CUBE_WIDTH  + CUBE_DEPTH + 1
@@ -23,6 +23,8 @@ VERT_MARGIN = 8
 
 # background color of final image (red, green, blue)
 BACKGROUND_COLOR = (0xaa, 0xaa, 0xcc)
+
+COLOR_COUNT = 5  # in cube files; incl. transparent
 
 import itertools, os, sys
 try:
@@ -120,9 +122,9 @@ def main():
         )
     if len(lines) != height * depth:
         sys.exit(f"There must be {height*depth} lines starting with '|'.")
+    if max((max(l) if l else 0) for l in lines) > COLOR_COUNT - 1:
+        sys.exit(f"Can't have color numbers greater than {COLOR_COUNT-1}.")
 
-    # get distinct colors used (except 0 or "non-cube")
-    colorsUsed = set(itertools.chain.from_iterable(lines)) - set((0,))
     # pad each line to width integers
     lines = [l + (width - len(l)) * (0,) for l in lines]
     # wrap each layer in its own tuple to get a tuple of tuples of tuples
@@ -157,48 +159,38 @@ def main():
     originX   += HORZ_MARGIN
     originY   += VERT_MARGIN
 
-    # make sure cube files exist
-    for color in sorted(colorsUsed):
-        cubeFile = CUBE_FILE_BASE + f"-c{color}.png"
-        if not os.path.isfile(cubeFile):
-            sys.exit(f"{cubeFile} not found.")
+    if not os.path.isfile(CUBE_FILE):
+        sys.exit(f"{CUBE_FILE} not found.")
 
-    # open cube files (ugly code warning; must be manually closed later)
-    cubeFileHandles = dict()
-    for color in colorsUsed:
-        cubeFile = CUBE_FILE_BASE + f"-c{color}.png"
-        cubeFileHandles[color] = open(cubeFile, "rb")
-
-    # open cube files and validate them
-    cubeImages = dict()
-    for color in cubeFileHandles:
-        cubeFileHandles[color].seek(0)
-        cubeImages[color] = Image.open(cubeFileHandles[color])
-        if (
-            cubeImages[color].mode != "RGBA"
-            or cubeImages[color].width != CUBE_IMG_WIDTH
-            or cubeImages[color].height != CUBE_IMG_HEIGHT
-        ):
-            # close cube files and exit
-            for color in cubeFileHandles:
-                cubeFileHandles[color].close()
+    with open(CUBE_FILE, "rb") as handle:
+        handle.seek(0)
+        cubeImage = Image.open(handle)
+        if cubeImage.mode != "RGBA":
+            sys.exit("Cube image must be in RGBA format.")
+        if cubeImage.width != CUBE_IMG_WIDTH * COLOR_COUNT:
             sys.exit(
-                f"Cube files must be in RGBA format, "
-                f"{CUBE_IMG_WIDTH} pixels wide "
-                f"and {CUBE_IMG_HEIGHT} pixels tall."
+                f"Cube image must be {CUBE_IMG_WIDTH*COLOR_COUNT} pixels wide."
             )
+        if cubeImage.height != CUBE_IMG_HEIGHT:
+            sys.exit(f"Cube image must be {CUBE_IMG_HEIGHT} pixels tall.")
 
-    # create output image
-    outImage = Image.new(
-        "RGBA", (imgWidth, imgHeight), BACKGROUND_COLOR + (0xff,)
-    )
+        cubeImages = [
+            cubeImage.crop((
+                i * CUBE_IMG_WIDTH, 0,
+                (i + 1) * CUBE_IMG_WIDTH, CUBE_IMG_HEIGHT
+            )) for i in range(COLOR_COUNT)
+        ]
 
-    # draw output image
-    for y in range(depth):
-        for z in range(height):
-            for x in range(width):
-                color = lines[z][y][x]
-                if color:
+        # create output image
+        outImage = Image.new(
+            "RGBA", (imgWidth, imgHeight), BACKGROUND_COLOR + (0xff,)
+        )
+
+        # draw output image
+        for y in range(depth):
+            for z in range(height):
+                for x in range(width):
+                    color = lines[z][y][x]
                     (_2dX, _2dY) = project_fn(x, y, z)
                     _2dX += originX
                     _2dY += originY
@@ -206,11 +198,7 @@ def main():
                         cubeImages[color], dest=(_2dX, _2dY)
                     )
 
-    # close cube files
-    for color in colorsUsed:
-        cubeFileHandles[color].close()
-
-    # remove alpha channel
+    # remove alpha channel from output image
     outImage = outImage.convert("RGB")
 
     # save output image

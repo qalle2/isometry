@@ -62,6 +62,7 @@ Two types of 3D coordinates are supported. The small cubes have `type1` or `type
   * Missing trailing spaces are assumed to be "no cube".
 
 ## Colour numbers
+* 0: none (transparent)
 * 1: black
 * 2: blue
 * 3: yellow
@@ -74,4 +75,4 @@ The constants at the beginning of the program can be edited. You can change:
 * the background colour
 
 ## Other files
-* `minicube-tT-wW-dD-hH-cC.png`: the cubes used as building blocks; `T`/`W`/`H`/`D`/`C` are 3D coordinate type, width, height, depth and colour (see above).
+* `minicube-tT-wW-dD-hH.png`: the cubes used as building blocks; `T`/`W`/`H`/`D`/`C` are 3D coordinate type, width, height and depth.
