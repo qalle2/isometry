@@ -70,9 +70,9 @@ Two types of 3D coordinates are supported. The small cubes have `type1` or `type
 
 ## More settings
 The constants at the beginning of the program can be edited. You can change:
-* the dimensions of the building blocks (only the combinations corresponding to `minicube-*.png` files are allowed; see below)
+* the dimensions of the building blocks (only the combinations corresponding to `block-*.png` files are allowed; see below)
 * the margins
 * the background colour
 
 ## Other files
-* `minicube-tT-wW-dD-hH.png`: the cubes used as building blocks; `T`/`W`/`H`/`D`/`C` are 3D coordinate type, width, height and depth.
+* `block-tT-wW-dD-hH.png`: the cubes used as building blocks; `T`/`W`/`H`/`D`/`C` are 3D coordinate type, width, height and depth.
