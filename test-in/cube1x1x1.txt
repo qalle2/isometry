@@ -1,0 +1,8 @@
+# a single block
+
+W1
+D1
+H1
+Baaaacc
+
+|1
