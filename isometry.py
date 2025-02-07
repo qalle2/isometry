@@ -1,36 +1,37 @@
-# Draw an isometric image consisting of cubes.
+# Draw an isometric image consisting of cubes. See README.md.
 
-COORD_TYPE = 2  # 1 or 2; see README.md
+# horizontal/vertical margins in output image
+MARGIN_HORZ = 8
+MARGIN_VERT = 8
 
-# the building block (a single cube); for coordinate type 2,
-# width/depth/height = how much X/Y/Z affects 2D coordinates
-CUBE_WIDTH  = 16
-CUBE_DEPTH  =  8
-CUBE_HEIGHT = 18
-CUBE_FILE = (
-    f"block-t{COORD_TYPE}-w{CUBE_WIDTH}-d{CUBE_DEPTH}-h{CUBE_HEIGHT}.png"
-)
-if COORD_TYPE == 1:
-    CUBE_IMG_WIDTH  = CUBE_WIDTH  + CUBE_DEPTH + 1
-    CUBE_IMG_HEIGHT = CUBE_HEIGHT + CUBE_DEPTH + 1
-else:
-    CUBE_IMG_WIDTH  = CUBE_WIDTH * 2 + 1
-    CUBE_IMG_HEIGHT = CUBE_DEPTH * 2 + CUBE_HEIGHT + 1
+# number of colours in block files, incl. transparent
+COLOUR_COUNT = 5
 
-# horizontal/vertical margin on each side of the final image, in pixels
-HORZ_MARGIN = 8
-VERT_MARGIN = 8
-
-# background color of final image (red, green, blue)
-BACKGROUND_COLOR = (0xaa, 0xaa, 0xcc)
-
-COLOR_COUNT = 5  # in cube files; incl. transparent
-
-import itertools, os, sys
+import os, sys
 try:
     from PIL import Image
 except ImportError:
     sys.exit("Pillow module required. See https://python-pillow.org")
+
+def decode_int(stri, min_, max_):
+    # decode an integer
+    try:
+        i = int(stri, 10)
+        if not min_ <= i <= max_:
+            raise ValueError
+    except ValueError:
+        sys.exit(f"Expected an integer between {min_}-{max_}.")
+    return i
+
+def decode_colour_code(colour):
+    # decode a hexadecimal RRGGBB colour code into (red, green, blue)
+    try:
+        colour = int(colour, 16)
+        if not 0 <= colour <= 0xffffff:
+            raise ValueError
+    except ValueError:
+        sys.exit("Expected a hexadecimal RRGGBB colour code.")
+    return tuple((colour >> s) & 0xff for s in (16, 8, 0))
 
 def get_lines(filename):
     # generate lines without newlines, leading whitespace or comments
@@ -41,31 +42,31 @@ def get_lines(filename):
             if line and not line.startswith("#"):
                 yield line
 
-def get_dimensions(inputFile):
-    # get dimensions from input file
+def get_settings(inputFile):
+    # read settings from input file;
+    # return: (width, depth, height, background_colour);
+    #         width, depth, height are in blocks;
+    #         background_colour is (red, green, blue)
 
-    width = depth = height = None
+    width = depth = height = bgColour = None
+
     for line in get_lines(inputFile):
         line = line.upper()
-        try:
-            if line.startswith("W"):
-                width = int(line[1:], 10)
-            elif line.startswith("D"):
-                depth = int(line[1:], 10)
-            elif line.startswith("H"):
-                height = int(line[1:], 10)
-            elif not line.startswith("|"):
-                sys.exit("Syntax error: " + line)
-        except ValueError:
-            sys.exit("Not an integer: " + line[1:])
+        if line.startswith("W"):
+            width = decode_int(line[1:], 1, 256)
+        elif line.startswith("D"):
+            depth = decode_int(line[1:], 1, 256)
+        elif line.startswith("H"):
+            height = decode_int(line[1:], 1, 256)
+        elif line.startswith("B"):
+            bgColour = decode_colour_code(line[1:])
+        elif not line.startswith("|"):
+            sys.exit("Syntax error: " + line)
 
-    for dimension in (width, depth, height):
-        if dimension is None:
-            sys.exit("Must define all of width, depth and height.")
-        if not 1 <= dimension <= 256:
-            sys.exit("Each dimension must be 1 to 256.")
+    if any(v is None for v in (width, depth, height, bgColour)):
+        sys.exit("Must define width, depth, height and background colour.")
 
-    return (width, depth, height)
+    return (width, depth, height, bgColour)
 
 def get_cube_data(inputFile):
     # generate cube data from input file (a tuple of ints per "|" line)
@@ -80,57 +81,60 @@ def get_cube_data(inputFile):
                     + line[1:]
                 )
 
-def type1_coords_to_2d(x, y, z):
-    # Convert "type 1" 3D coordinates into 2D (x, y)
+def type1_coords_to_2d(x, y, z, w, d, h):
+    # convert "type 1" 3D coordinates into 2D (x, y);
+    # w, d, h = block width/depth/height
     #       Z
     #       |
     #       +---X  -->  +-- X
     #      /            |
     #     Y             Y
-    return (
-         x * CUBE_WIDTH  - y * CUBE_DEPTH,
-        -z * CUBE_HEIGHT + y * CUBE_DEPTH
-    )
+    return (x * w - y * d, -z * h + y * d)
 
-def type2_coords_to_2d(x, y, z):
-    # Convert "type 2" 3D coordinates into 2D (x, y)
+def type2_coords_to_2d(x, y, z, w, d, h):
+    # convert "type 2" 3D coordinates into 2D (x, y);
+    # w, d, h = block width/depth/height
     #       Z
     #       |    -->  +-- X
     #      / \        |
     #     Y   X       Y
-    return (
-        (x - y) * CUBE_WIDTH,
-        (x + y) * CUBE_DEPTH - z * CUBE_HEIGHT
-    )
+    return ((x - y) * w, (x + y) * d - z * h)
 
 def main():
-    if 3 <= len(sys.argv) <= 4:
-        (inputFile, outputFile) = sys.argv[1:3]
-        reverseAxes = sys.argv[3].upper() if len(sys.argv) == 4 else ""
+    if 7 <= len(sys.argv) <= 8:
+        (
+            inputFile, outputFile, coordType,
+            blkWidth, blkDepth, blkHeight,
+        ) = sys.argv[1:7]
+        reverseAxes = sys.argv[7].upper() if len(sys.argv) == 8 else ""
     else:
         sys.exit(
-            "Arguments: inputFile outputFile [axesToReverse]; see README.md "
-            "for details"
+            "Arguments: inputFile outputFile 3dCoordinateType blkWidth "
+            "blkDepth blkHeight [axesToReverse]; see README.md for "
+            "details."
         )
 
-    (width, depth, height) = get_dimensions(inputFile)
+    coordType = int(coordType, 10)
+    blkWidth  = int(blkWidth,  10)
+    blkDepth  = int(blkDepth,  10)
+    blkHeight = int(blkHeight, 10)
+
+    (objWidth, objDepth, objHeight, bgColour) = get_settings(inputFile)
 
     lines = list(get_cube_data(inputFile))
-    if max(len(l) for l in lines) > width:
-        sys.exit(
-            f"Can't have more than {width} characters plus newline after '|'."
-        )
-    if len(lines) != height * depth:
-        sys.exit(f"There must be {height*depth} lines starting with '|'.")
-    if max((max(l) if l else 0) for l in lines) > COLOR_COUNT - 1:
-        sys.exit(f"Can't have color numbers greater than {COLOR_COUNT-1}.")
+    if max(len(l) for l in lines) > objWidth:
+        sys.exit(f"Can't have more than {objWidth} characters after '|'.")
+    if len(lines) != objHeight * objDepth:
+        sys.exit(f"Must have {objHeight*objDepth} lines starting with '|'.")
+    if max((max(l) if l else 0) for l in lines) > COLOUR_COUNT - 1:
+        sys.exit(f"Can't have colour numbers greater than {COLOUR_COUNT-1}.")
 
-    # pad each line to width integers
-    lines = [l + (width - len(l)) * (0,) for l in lines]
+    # pad each line to objWidth integers
+    lines = [l + (objWidth - len(l)) * (0,) for l in lines]
     # wrap each layer in its own tuple to get a tuple of tuples of tuples
     lines = tuple(
-        tuple(lines[i:i+depth])
-        for i in range(0, height * depth, depth)
+        tuple(lines[i:i+objDepth])
+        for i in range(0, objHeight * objDepth, objDepth)
     )
 
     # reverse axes if needed
@@ -142,60 +146,75 @@ def main():
         lines = lines[::-1]
 
     # get 3D-to-2D projection function, size of final image and 2D origin
-    if COORD_TYPE == 1:
-        project_fn = type1_coords_to_2d
-        imgWidth  = width  * CUBE_WIDTH  + depth * CUBE_DEPTH
-        imgHeight = height * CUBE_HEIGHT + depth * CUBE_DEPTH
-        originX = (depth  - 1) * CUBE_DEPTH
-        originY = (height - 1) * CUBE_HEIGHT
+    if coordType == 1:
+        projection_fn = type1_coords_to_2d
+        imgWidth  = objWidth  * blkWidth  + objDepth * blkDepth
+        imgHeight = objHeight * blkHeight + objDepth * blkDepth
+        originX = (objDepth  - 1) * blkDepth
+        originY = (objHeight - 1) * blkHeight
     else:
-        project_fn = type2_coords_to_2d
-        imgWidth  = (width + depth) * CUBE_WIDTH
-        imgHeight = (width + depth) * CUBE_DEPTH + height * CUBE_HEIGHT
-        originX = (depth  - 1) * CUBE_WIDTH
-        originY = (height - 1) * CUBE_HEIGHT
-    imgWidth  += HORZ_MARGIN * 2
-    imgHeight += VERT_MARGIN * 2
-    originX   += HORZ_MARGIN
-    originY   += VERT_MARGIN
+        projection_fn = type2_coords_to_2d
+        imgWidth = (objWidth + objDepth) * blkWidth
+        imgHeight = (
+            (objWidth + objDepth) * blkDepth + objHeight * blkHeight
+        )
+        originX = (objDepth  - 1) * blkWidth
+        originY = (objHeight - 1) * blkHeight
+    imgWidth  += MARGIN_HORZ * 2
+    imgHeight += MARGIN_VERT * 2
+    originX   += MARGIN_HORZ
+    originY   += MARGIN_VERT
 
-    if not os.path.isfile(CUBE_FILE):
-        sys.exit(f"{CUBE_FILE} not found.")
+    blockFile = (
+        f"block-t{coordType}-w{blkWidth}-d{blkDepth}-h{blkHeight}.png"
+    )
 
-    with open(CUBE_FILE, "rb") as handle:
+    if coordType == 1:
+        blkImgWidth  = blkWidth  + blkDepth + 1
+        blkImgHeight = blkHeight + blkDepth + 1
+    else:
+        blkImgWidth  = blkWidth * 2 + 1
+        blkImgHeight = blkDepth * 2 + blkHeight + 1
+
+    if not os.path.isfile(blockFile):
+        sys.exit(f"{blockFile} not found.")
+    if os.path.exists(outputFile):
+        sys.exit(f"{outputFile} already exists.")
+
+    with open(blockFile, "rb") as handle:
         handle.seek(0)
         cubeImage = Image.open(handle)
         if cubeImage.mode != "RGBA":
             sys.exit("Cube image must be in RGBA format.")
-        if cubeImage.width != CUBE_IMG_WIDTH * COLOR_COUNT:
+        if cubeImage.width != blkImgWidth * COLOUR_COUNT:
             sys.exit(
-                f"Cube image must be {CUBE_IMG_WIDTH*COLOR_COUNT} pixels wide."
+                f"Cube image must be {blkImgWidth*COLOUR_COUNT} pixels wide."
             )
-        if cubeImage.height != CUBE_IMG_HEIGHT:
-            sys.exit(f"Cube image must be {CUBE_IMG_HEIGHT} pixels tall.")
+        if cubeImage.height != blkImgHeight:
+            sys.exit(f"Cube image must be {blkImgHeight} pixels tall.")
 
         cubeImages = [
             cubeImage.crop((
-                i * CUBE_IMG_WIDTH, 0,
-                (i + 1) * CUBE_IMG_WIDTH, CUBE_IMG_HEIGHT
-            )) for i in range(COLOR_COUNT)
+                i * blkImgWidth, 0,
+                (i + 1) * blkImgWidth, blkImgHeight
+            )) for i in range(COLOUR_COUNT)
         ]
 
         # create output image
-        outImage = Image.new(
-            "RGBA", (imgWidth, imgHeight), BACKGROUND_COLOR + (0xff,)
-        )
+        outImage = Image.new("RGBA", (imgWidth, imgHeight), bgColour + (0xff,))
 
         # draw output image
-        for y in range(depth):
-            for z in range(height):
-                for x in range(width):
-                    color = lines[z][y][x]
-                    (_2dX, _2dY) = project_fn(x, y, z)
+        for y in range(objDepth):
+            for z in range(objHeight):
+                for x in range(objWidth):
+                    colour = lines[z][y][x]
+                    (_2dX, _2dY) = projection_fn(
+                        x, y, z, blkWidth, blkDepth, blkHeight
+                    )
                     _2dX += originX
                     _2dY += originY
                     outImage.alpha_composite(
-                        cubeImages[color], dest=(_2dX, _2dY)
+                        cubeImages[colour], dest=(_2dX, _2dY)
                     )
 
     # remove alpha channel from output image
@@ -205,5 +224,7 @@ def main():
     with open(outputFile, "wb") as handle:
         handle.seek(0)
         outImage.save(handle, "png")
+
+    print(f"Wrote {outputFile}")
 
 main()
