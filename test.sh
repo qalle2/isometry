@@ -20,8 +20,12 @@ python3 isometry.py test-in/cubechecker.txt test-out/cubechecker-t2.png 2 15 8 1
 python3 isometry.py test-in/cubesparse.txt test-out/cubesparse-t1.png 1 16 9 16
 python3 isometry.py test-in/cubesparse.txt test-out/cubesparse-t2.png 2 15 8 17
 
-python3 isometry.py test-in/eevee.txt test-out/eevee-norev-t1.png 1 16 9 16
-python3 isometry.py test-in/eevee.txt test-out/eevee-norev-t2.png 2 15 8 17
+python3 isometry.py test-in/eevee.txt test-out/eevee-norev-t1a.png 1 16 7 16
+python3 isometry.py test-in/eevee.txt test-out/eevee-norev-t1b.png 1 16 8 16
+python3 isometry.py test-in/eevee.txt test-out/eevee-norev-t1c.png 1 16 9 16
+python3 isometry.py test-in/eevee.txt test-out/eevee-norev-t2a.png 2 15 8 15
+python3 isometry.py test-in/eevee.txt test-out/eevee-norev-t2b.png 2 15 8 16
+python3 isometry.py test-in/eevee.txt test-out/eevee-norev-t2c.png 2 15 8 17
 python3 isometry.py test-in/eevee.txt test-out/eevee-revy-t1.png  1 16 9 16 Y
 python3 isometry.py test-in/eevee.txt test-out/eevee-revy-t2.png  2 15 8 17 Y
 python3 isometry.py test-in/eevee.txt test-out/eevee-revz-t1.png  1 16 9 16 Z
