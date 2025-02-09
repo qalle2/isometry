@@ -91,6 +91,49 @@ def get_object_data(inputFile):
                     + line[1:]
                 )
 
+def transform_object(object, rotateAxes, reverseAxes):
+    # rotate and mirror object if needed;
+    # object: tuple of tuples of tuples of ints
+       
+    # rotate axes 90 degrees if needed
+    if "X" in rotateAxes:
+        object = tuple(
+            tuple(
+                tuple(
+                    object[z][y][x]
+                    for x in range(len(object[0][0]))
+                ) for z in range(len(object))
+            ) for y in range(len(object[0]))
+        )
+    if "Y" in rotateAxes:
+        object = tuple(
+            tuple(
+                tuple(
+                    object[z][y][x]
+                    for z in range(len(object))
+                ) for y in range(len(object[0]))
+            ) for x in range(len(object[0][0]))
+        )
+    if "Z" in rotateAxes:
+        object = tuple(
+            tuple(
+                tuple(
+                    object[z][y][x]
+                    for y in range(len(object[0]))
+                ) for x in range(len(object[0][0]))
+            ) for z in range(len(object))
+        )
+
+    # mirror axes if needed
+    if "X" in reverseAxes:
+        object = tuple(tuple(j[::-1] for j in i) for i in object)
+    if "Y" in reverseAxes:
+        object = tuple(i[::-1] for i in object)
+    if "Z" in reverseAxes:
+        object = object[::-1]
+
+    return object
+
 def type1_coords_to_2d(x, y, z, w, d, h):
     # convert "type 1" 3D coordinates into 2D (x, y);
     # w, d, h = block width/depth/height
@@ -111,17 +154,18 @@ def type2_coords_to_2d(x, y, z, w, d, h):
     return ((x - y) * w, (x + y) * d - z * h)
 
 def main():
-    if 7 <= len(sys.argv) <= 8:
+    if 7 <= len(sys.argv) <= 9:
         (
             inputFile, outputFile, coordType,
             blkWidth, blkDepth, blkHeight,
         ) = sys.argv[1:7]
-        reverseAxes = sys.argv[7].upper() if len(sys.argv) == 8 else ""
+        rotateAxes  = sys.argv[7].upper() if len(sys.argv) >= 8 else ""
+        reverseAxes = sys.argv[8].upper() if len(sys.argv) == 9 else ""
     else:
         sys.exit(
             "Arguments: inputFile outputFile 3dCoordinateType blkWidth "
-            "blkDepth blkHeight [axesToReverse]; see README.md for "
-            "details."
+            "blkDepth blkHeight [axesToRotate] [axesToReverse]; see README.md "
+            "for details."
         )
 
     coordType = int(coordType, 10)
@@ -131,29 +175,27 @@ def main():
 
     (objWidth, objDepth, objHeight, bgColour) = get_settings(inputFile)
 
-    lines = list(get_object_data(inputFile))
-    if max(len(l) for l in lines) > objWidth:
+    objData = list(get_object_data(inputFile))
+    if max(len(l) for l in objData) > objWidth:
         sys.exit(f"Can't have more than {objWidth} characters after '|'.")
-    if len(lines) != objHeight * objDepth:
+    if len(objData) != objHeight * objDepth:
         sys.exit(f"Must have {objHeight*objDepth} lines starting with '|'.")
-    if max((max(l) if l else 0) for l in lines) > COLOUR_COUNT - 1:
+    if max((max(l) if l else 0) for l in objData) > COLOUR_COUNT - 1:
         sys.exit(f"Can't have colour numbers greater than {COLOUR_COUNT-1}.")
 
     # pad each line to objWidth integers
-    lines = [l + (objWidth - len(l)) * (0,) for l in lines]
+    objData = [l + (objWidth - len(l)) * (0,) for l in objData]
     # wrap each layer in its own tuple to get a tuple of tuples of tuples
-    lines = tuple(
-        tuple(lines[i:i+objDepth])
+    objData = tuple(
+        tuple(objData[i:i+objDepth])
         for i in range(0, objHeight * objDepth, objDepth)
     )
 
-    # reverse axes if needed
-    if "X" in reverseAxes:
-        lines = tuple(tuple(j[::-1] for j in i) for i in lines)
-    if "Y" in reverseAxes:
-        lines = tuple(i[::-1] for i in lines)
-    if "Z" in reverseAxes:
-        lines = lines[::-1]
+    # rotate and mirror object if needed
+    objData = transform_object(objData, rotateAxes, reverseAxes)
+    objWidth  = len(objData[0][0])
+    objDepth  = len(objData[0])
+    objHeight = len(objData)
 
     # get size of final image and 2D origin
     if coordType == 1:
@@ -216,7 +258,7 @@ def main():
             for y in range(objDepth):
                 for z in range(objHeight):
                     for x in range(objWidth):
-                        colour = lines[z][y][x]
+                        colour = objData[z][y][x]
                         (_2dX, _2dY) = type1_coords_to_2d(
                             x, y, z, blkWidth, blkDepth, blkHeight
                         )
@@ -232,7 +274,7 @@ def main():
                     for x in range(objWidth):
                         for y in range(objDepth):
                             if x + y + z == distSum:
-                                colour = lines[z][y][x]
+                                colour = objData[z][y][x]
                                 (_2dX, _2dY) = type2_coords_to_2d(
                                     x, y, z, blkWidth, blkDepth, blkHeight
                                 )

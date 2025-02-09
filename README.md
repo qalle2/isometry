@@ -29,11 +29,16 @@ Two types of 3D coordinates are supported.
 ![example with "type 2" projection](example2.png)
 
 ## Command line arguments
-*inputFile outputFile 3dCoordinateType blockWidth blockDepth blockHeight axesToReverse*
+*inputFile outputFile 3dCoordinateType blockWidth blockDepth blockHeight axesToRotate axesToReverse*
 * *inputFile*: file to read (describes the 3D object; see "input file" below)
 * *outputFile*: image file to write (PNG, RGB without alpha)
 * *3dCoordinateType*: 1 or 2 (see "3D coordinates" above)
 * *blockWidth, blockDepth, blockHeight*: size of building blocks (small cubes; see "notes" below)
+* *axesToRotate*:
+  * optional
+  * lets you rotate the object 90 degrees around the X, Y and/or Z axes before rendering it
+  * a string consisting of one or more of the characters `X`, `Y` and `Z`
+  * case insensitive
 * *axesToReverse*:
   * optional
   * lets you mirror the object around the planes `X=0`, `Y=0` and/or `Z=0` planes before rendering it
@@ -41,7 +46,7 @@ Two types of 3D coordinates are supported.
   * case insensitive
 
 Notes:
-* All arguments except *axesToReverse* are required.
+* All arguments except *axesToRotate* and *axesToReverse* are required.
 * A combination of *3dCoordinateType*, *blockWidth*, *blockDepth* and *blockHeight* requires the corresponding building block file (see "other files" below).
 
 ## Input file
