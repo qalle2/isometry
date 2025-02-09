@@ -1,4 +1,13 @@
-# Draw an isometric image consisting of cubes. See README.md.
+# Draw an isometric image consisting of building blocks (small cubes).
+# See README.md.
+
+
+# Size of "type 2" blocks:
+#      /\   ^ depth
+#     |\/|  v
+#     |  |    ^ height
+#      \/     v
+#     <--> width
 
 # horizontal/vertical margins in output image
 MARGIN_HORZ = 8
@@ -68,8 +77,9 @@ def get_settings(inputFile):
 
     return (width, depth, height, bgColour)
 
-def get_cube_data(inputFile):
-    # generate cube data from input file (a tuple of ints per "|" line)
+def get_object_data(inputFile):
+    # generate object data (colours of blocks) from input file
+    # (a tuple of ints per "|" line)
 
     for line in get_lines(inputFile):
         if line.startswith("|"):
@@ -121,7 +131,7 @@ def main():
 
     (objWidth, objDepth, objHeight, bgColour) = get_settings(inputFile)
 
-    lines = list(get_cube_data(inputFile))
+    lines = list(get_object_data(inputFile))
     if max(len(l) for l in lines) > objWidth:
         sys.exit(f"Can't have more than {objWidth} characters after '|'.")
     if len(lines) != objHeight * objDepth:
@@ -145,18 +155,16 @@ def main():
     if "Z" in reverseAxes:
         lines = lines[::-1]
 
-    # get 3D-to-2D projection function, size of final image and 2D origin
+    # get size of final image and 2D origin
     if coordType == 1:
-        projection_fn = type1_coords_to_2d
         imgWidth  = objWidth  * blkWidth  + objDepth * blkDepth
         imgHeight = objHeight * blkHeight + objDepth * blkDepth
         originX = (objDepth  - 1) * blkDepth
         originY = (objHeight - 1) * blkHeight
     else:
-        projection_fn = type2_coords_to_2d
-        imgWidth = (objWidth + objDepth) * blkWidth
+        imgWidth = (objWidth + objDepth) * blkWidth + 1
         imgHeight = (
-            (objWidth + objDepth) * blkDepth + objHeight * blkHeight
+            (objWidth + objDepth) * blkDepth + objHeight * blkHeight + 1
         )
         originX = (objDepth  - 1) * blkWidth
         originY = (objHeight - 1) * blkHeight
@@ -183,18 +191,18 @@ def main():
 
     with open(blockFile, "rb") as handle:
         handle.seek(0)
-        cubeImage = Image.open(handle)
-        if cubeImage.mode != "RGBA":
-            sys.exit("Cube image must be in RGBA format.")
-        if cubeImage.width != blkImgWidth * COLOUR_COUNT:
+        blockImage = Image.open(handle)
+        if blockImage.mode != "RGBA":
+            sys.exit("Block image must be in RGBA format.")
+        if blockImage.width != blkImgWidth * COLOUR_COUNT:
             sys.exit(
-                f"Cube image must be {blkImgWidth*COLOUR_COUNT} pixels wide."
+                f"Block image must be {blkImgWidth*COLOUR_COUNT} pixels wide."
             )
-        if cubeImage.height != blkImgHeight:
-            sys.exit(f"Cube image must be {blkImgHeight} pixels tall.")
+        if blockImage.height != blkImgHeight:
+            sys.exit(f"Block image must be {blkImgHeight} pixels tall.")
 
-        cubeImages = [
-            cubeImage.crop((
+        blockImages = [
+            blockImage.crop((
                 i * blkImgWidth, 0,
                 (i + 1) * blkImgWidth, blkImgHeight
             )) for i in range(COLOUR_COUNT)
@@ -204,18 +212,35 @@ def main():
         outImage = Image.new("RGBA", (imgWidth, imgHeight), bgColour + (0xff,))
 
         # draw output image
-        for y in range(objDepth):
-            for z in range(objHeight):
-                for x in range(objWidth):
-                    colour = lines[z][y][x]
-                    (_2dX, _2dY) = projection_fn(
-                        x, y, z, blkWidth, blkDepth, blkHeight
-                    )
-                    _2dX += originX
-                    _2dY += originY
-                    outImage.alpha_composite(
-                        cubeImages[colour], dest=(_2dX, _2dY)
-                    )
+        if coordType == 1:
+            for y in range(objDepth):
+                for z in range(objHeight):
+                    for x in range(objWidth):
+                        colour = lines[z][y][x]
+                        (_2dX, _2dY) = type1_coords_to_2d(
+                            x, y, z, blkWidth, blkDepth, blkHeight
+                        )
+                        _2dX += originX
+                        _2dY += originY
+                        outImage.alpha_composite(
+                            blockImages[colour], dest=(_2dX, _2dY)
+                        )
+        else:
+            # draw blocks from smallest to largest x+y+z
+            for distSum in range(0, objWidth + objDepth + objHeight + 1):
+                for z in range(objHeight):
+                    for x in range(objWidth):
+                        for y in range(objDepth):
+                            if x + y + z == distSum:
+                                colour = lines[z][y][x]
+                                (_2dX, _2dY) = type2_coords_to_2d(
+                                    x, y, z, blkWidth, blkDepth, blkHeight
+                                )
+                                _2dX += originX
+                                _2dY += originY
+                                outImage.alpha_composite(
+                                    blockImages[colour], dest=(_2dX, _2dY)
+                                )
 
     # remove alpha channel from output image
     outImage = outImage.convert("RGB")
