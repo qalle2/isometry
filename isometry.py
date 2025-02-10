@@ -94,7 +94,7 @@ def get_object_data(inputFile):
 def transform_object(object, rotateAxes, reverseAxes):
     # rotate and mirror object if needed;
     # object: tuple of tuples of tuples of ints
-       
+
     # rotate axes 90 degrees if needed
     if "X" in rotateAxes:
         object = tuple(
@@ -140,9 +140,9 @@ def type1_coords_to_2d(x, y, z, w, d, h):
     #       Z
     #       |
     #       +---X  -->  +-- X
-    #      /            |
-    #     Y             Y
-    return (x * w - y * d, -z * h + y * d)
+    #       |           |
+    #       Y           Y
+    return (x * w, y * d - z * h)
 
 def type2_coords_to_2d(x, y, z, w, d, h):
     # convert "type 2" 3D coordinates into 2D (x, y);
@@ -199,9 +199,9 @@ def main():
 
     # get size of final image and 2D origin
     if coordType == 1:
-        imgWidth  = objWidth  * blkWidth  + objDepth * blkDepth
-        imgHeight = objHeight * blkHeight + objDepth * blkDepth
-        originX = (objDepth  - 1) * blkDepth
+        imgWidth  = objWidth  * blkWidth + 1
+        imgHeight = objHeight * blkHeight + objDepth * blkDepth + 1
+        originX = 0
         originY = (objHeight - 1) * blkHeight
     else:
         imgWidth = (objWidth + objDepth) * blkWidth + 1
@@ -220,7 +220,7 @@ def main():
     )
 
     if coordType == 1:
-        blkImgWidth  = blkWidth  + blkDepth + 1
+        blkImgWidth  = blkWidth  + 1
         blkImgHeight = blkHeight + blkDepth + 1
     else:
         blkImgWidth  = blkWidth * 2 + 1
@@ -255,18 +255,21 @@ def main():
 
         # draw output image
         if coordType == 1:
-            for y in range(objDepth):
-                for z in range(objHeight):
-                    for x in range(objWidth):
-                        colour = objData[z][y][x]
-                        (_2dX, _2dY) = type1_coords_to_2d(
-                            x, y, z, blkWidth, blkDepth, blkHeight
-                        )
-                        _2dX += originX
-                        _2dY += originY
-                        outImage.alpha_composite(
-                            blockImages[colour], dest=(_2dX, _2dY)
-                        )
+            # draw blocks from smallest to largest y+z
+            for distSum in range(0, objDepth + objHeight + 1):
+                for y in range(objDepth):
+                    for z in range(objHeight):
+                        if y + z == distSum:
+                            for x in range(objWidth):
+                                colour = objData[z][y][x]
+                                (_2dX, _2dY) = type1_coords_to_2d(
+                                    x, y, z, blkWidth, blkDepth, blkHeight
+                                )
+                                _2dX += originX
+                                _2dY += originY
+                                outImage.alpha_composite(
+                                    blockImages[colour], dest=(_2dX, _2dY)
+                                )
         else:
             # draw blocks from smallest to largest x+y+z
             for distSum in range(0, objWidth + objDepth + objHeight + 1):

@@ -14,7 +14,7 @@ Two types of 3D coordinates are supported.
 
 ### Type 1
 * X+ = right
-* Y+ = left and towards viewer
+* Y+ = towards viewer
 * Z+ = up
 * uses building blocks `block-t1-*.png`
 
