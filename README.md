@@ -20,8 +20,8 @@ Two types of 3D coordinates are supported.
 
 Examples with zero/nonzero depth:
 
-![an example of "type 1" projection with zero depth](example1a.png)
-![an example of "type 1" projection with nonzero depth](example1b.png)
+![an example of "type 1" projection with zero depth](example-t1a.png)
+![an example of "type 1" projection with nonzero depth](example-t1b.png)
 
 ### Type 2
 * X+ = right and towards viewer
@@ -31,8 +31,8 @@ Examples with zero/nonzero depth:
 
 Examples with zero/nonzero depth:
 
-![an example of "type 2" projection with zero depth](example2a.png)
-![an example of "type 2" projection with nonzero depth](example2b.png)
+![an example of "type 2" projection with zero depth](example-t2a.png)
+![an example of "type 2" projection with nonzero depth](example-t2b.png)
 
 ## Command line arguments
 *inputFile outputFile 3dCoordinateType blockWidth blockDepth blockHeight axesToRotate axesToMirror*
