@@ -18,7 +18,10 @@ Two types of 3D coordinates are supported.
 * Z+ = up
 * uses building blocks `block-t1-*.png`
 
-![example with "type 1" projection](example1.png)
+Examples with zero/nonzero depth:
+
+![an example of "type 1" projection with zero depth](example1a.png)
+![an example of "type 1" projection with nonzero depth](example1b.png)
 
 ### Type 2
 * X+ = right and towards viewer
@@ -26,27 +29,31 @@ Two types of 3D coordinates are supported.
 * Z+ = up
 * uses building blocks `block-t2-*.png`
 
-![example with "type 2" projection](example2.png)
+Examples with zero/nonzero depth:
+
+![an example of "type 2" projection with zero depth](example2a.png)
+![an example of "type 2" projection with nonzero depth](example2b.png)
 
 ## Command line arguments
-*inputFile outputFile 3dCoordinateType blockWidth blockDepth blockHeight axesToRotate axesToReverse*
+*inputFile outputFile 3dCoordinateType blockWidth blockDepth blockHeight axesToRotate axesToMirror*
 * *inputFile*: file to read (describes the 3D object; see "input file" below)
 * *outputFile*: image file to write (PNG, RGB without alpha)
 * *3dCoordinateType*: 1 or 2 (see "3D coordinates" above)
 * *blockWidth, blockDepth, blockHeight*: size of building blocks (small cubes; see "notes" below)
 * *axesToRotate*:
-  * optional
-  * lets you rotate the object 90 degrees around the X, Y and/or Z axes before rendering it
-  * a string consisting of one or more of the characters `X`, `Y` and `Z`
+  * a string consisting of the characters `X`, `Y`, `Z`; zero to three of each
+  * for each character, the object will be rotated 90 degrees counterclockwise around that axis
+  * the order of the characters does not matter
+  * optional (default is no rotation)
   * case insensitive
-* *axesToReverse*:
-  * optional
-  * lets you mirror the object around the planes `X=0`, `Y=0` and/or `Z=0` planes before rendering it
-  * a string consisting of one or more of the characters `X`, `Y` and `Z`
+* *axesToMirror*:
+  * a string consisting of the characters `X`, `Y` and `Z`; zero or one of each
+  * for each character, the object will be mirrored along that axis
+  * optional (default is no mirroring)
   * case insensitive
 
 Notes:
-* All arguments except *axesToRotate* and *axesToReverse* are required.
+* All arguments except *axesToRotate* and *axesToMirror* are required.
 * A combination of *3dCoordinateType*, *blockWidth*, *blockDepth* and *blockHeight* requires the corresponding building block file (see "other files" below).
 
 ## Input file
