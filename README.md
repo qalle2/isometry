@@ -97,7 +97,7 @@ Bff0000
 * 6&ndash;9: currently unsupported
 
 ## Other files
-* `block-tT-wW-dD-hH.png`: the building blocks (small cubes); `T`/`W`/`H`/`D` are 3D coordinate type, width, height and depth.
+* `block-tT-wW.png`: the building blocks (small cubes); `T` = 3D coordinate type, `W` = width
 
 How the width, depth and height of a block are determined:
 

@@ -14,6 +14,15 @@ MARGIN_VERT = 8
 # number of colours in block files, including transparent
 COLOUR_COUNT = 6
 
+# what block sizes do block images contain
+# key:   (coordinate_type, width)
+# value: ((depth1, height1), ...) from top to bottom
+# there must be a corresponding file "block-tT-wW.png" for each key
+BLOCK_FILES = {
+    (1, 21): ((16, 16), (0, 21)),
+    (2, 15): (( 8, 16), (0, 21)),
+}
+
 # --- helper functions --------------------------------------------------------
 
 def decode_int(stri, min_, max_):
@@ -44,11 +53,6 @@ def get_lines(filename):
             if line := line.strip():
                 yield line
 
-def get_block_filename(coordType, width, depth, height):
-    # get name of file to read building blocks from
-
-    return f"block-t{coordType}-w{width}-d{depth}-h{height}.png"
-
 # --- argument parsing --------------------------------------------------------
 
 def parse_args():
@@ -73,9 +77,18 @@ def parse_args():
     blkDepth  = decode_int(blkDepth,  0, 256)
     blkHeight = decode_int(blkHeight, 1, 256)
 
+    if (
+        (coordType, blkWidth) not in BLOCK_FILES
+        or (blkDepth, blkHeight) not in BLOCK_FILES[(coordType, blkWidth)]
+    ):
+        sys.exit(
+            "Combination of 3D coordinate type, block width, block depth and "
+            "block height is not supported."
+        )
+
     if not os.path.isfile(inputFile):
         sys.exit(f"{inputFile} not found.")
-    blockFile = get_block_filename(coordType, blkWidth, blkDepth, blkHeight)
+    blockFile = "block-t{}-w{}.png".format(coordType, blkWidth)
     if not os.path.isfile(blockFile):
         sys.exit(f"{blockFile} not found.")
     if os.path.exists(outputFile):
@@ -210,6 +223,64 @@ def transform_object(object, rotateAxes, mirrorAxes):
 
 # --- output image drawing ----------------------------------------------------
 
+def get_output_image_size(args, objWidth, objDepth, objHeight):
+    # args:   command line arguments;
+    # obj*:   object size in blocks;
+    # return: (width, height)
+
+    if args["coordType"] == 1:
+        imgWidth  = objWidth * args["blkWidth"]
+        imgHeight = objDepth * args["blkDepth"] + objHeight * args["blkHeight"]
+    else:
+        imgWidth = (objWidth + objDepth) * args["blkWidth"]
+        imgHeight = (
+            (objWidth + objDepth) * args["blkDepth"]
+            + objHeight * args["blkHeight"]
+        )
+
+    imgWidth  += MARGIN_HORZ * 2 + 1
+    imgHeight += MARGIN_VERT * 2 + 1
+
+    return (imgWidth, imgHeight)
+
+def get_block_image_properties_type1(args):
+    # get properties of block image for 3D coords of type 1;
+    # args: command line arguments; return: dict
+
+    # size of one block image
+    if args["coordType"] == 1:
+        imgWidth  = 1 + args["blkWidth"]
+        imgHeight = 1 + args["blkHeight"] + args["blkDepth"]
+    else:
+        imgWidth  = 1 + args["blkWidth"] * 2
+        imgHeight = 1 + args["blkDepth"] * 2 + args["blkHeight"]
+
+    # start Y position in file
+    imgStartY = 0
+    for (depth, height) in BLOCK_FILES[(args["coordType"], args["blkWidth"])]:
+        if depth == args["blkDepth"] and height == args["blkHeight"]:
+            break
+        elif args["coordType"] == 1:
+            imgStartY += depth + height + 1
+        else:
+            imgStartY += depth * 2 + height + 1
+
+    # file dimensions
+    totalWidth = imgWidth * COLOUR_COUNT
+    rows = BLOCK_FILES[(args["coordType"], args["blkWidth"])]
+    if args["coordType"] == 1:
+        totalHeight = sum(d + h + 1 for (d, h) in rows)
+    else:
+        totalHeight = sum(d * 2 + h + 1 for (d, h) in rows)
+
+    return {
+        "width":       imgWidth,
+        "height":      imgHeight,
+        "startY":      imgStartY,
+        "totalWidth":  totalWidth,
+        "totalHeight": totalHeight,
+    }
+
 def get_type1_coords(width, depth, height):
     # generate 3D coordinates (x, y, z) from rear to front for "type 1" blocks
     # (from smallest to largest y+z)
@@ -325,40 +396,12 @@ def main():
     # these are no longer valid
     del objProps["width"], objProps["depth"], objProps["height"]
 
-    # get sizes of block and output images
-    if args["coordType"] == 1:
-        blkImgWidth  = args["blkWidth"]                     + 1
-        blkImgHeight = args["blkHeight"] + args["blkDepth"] + 1
-        outImgWidth = (
-            MARGIN_HORZ * 2
-            + objWidth * args["blkWidth"]
-            + 1
-        )
-        outImgHeight = (
-            MARGIN_VERT * 2
-            + objHeight * args["blkHeight"]
-            + objDepth  * args["blkDepth"]
-            + 1
-        )
-    else:
-        blkImgWidth  = args["blkWidth"] * 2                     + 1
-        blkImgHeight = args["blkDepth"] * 2 + args["blkHeight"] + 1
-        outImgWidth = (
-            MARGIN_HORZ * 2
-            + (objWidth + objDepth) * args["blkWidth"]
-            + 1
-        )
-        outImgHeight = (
-            MARGIN_VERT * 2
-            + (objWidth + objDepth) * args["blkDepth"]
-            + objHeight * args["blkHeight"]
-            + 1
-        )
-
-    blockFile = get_block_filename(
-        args["coordType"], args["blkWidth"], args["blkDepth"],
-        args["blkHeight"]
+    (outImgWidth, outImgHeight) = get_output_image_size(
+        args, objWidth, objDepth, objHeight
     )
+
+    blkImgProps = get_block_image_properties_type1(args)
+    blockFile = "block-t{}-w{}.png".format(args["coordType"], args["blkWidth"])
 
     # draw block images on output image
     try:
@@ -368,18 +411,23 @@ def main():
             blkImg = Image.open(handle)
             if blkImg.mode != "RGBA":
                 sys.exit("Block image must be in RGBA format.")
-            if blkImg.width != blkImgWidth * COLOUR_COUNT:
+            if blkImg.width != blkImgProps["totalWidth"]:
                 sys.exit(
-                    f"Block image width must be {blkImgWidth*COLOUR_COUNT}."
+                    f"Block image width must be {blkImgProps['totalWidth']}."
                 )
-            if blkImg.height != blkImgHeight:
-                sys.exit(f"Block image height must be {blkImgHeight}.")
+            if blkImg.height != blkImgProps["totalHeight"]:
+                sys.exit(
+                    f"Block image height must be {blkImgProps['totalHeight']}."
+                )
 
             # get each colour variant of block image as separate image
             blkImgs = tuple(
-                blkImg.crop(
-                    (i * blkImgWidth, 0, (i + 1) * blkImgWidth, blkImgHeight)
-                ) for i in range(COLOUR_COUNT)
+                blkImg.crop((
+                    i * blkImgProps["width"],
+                    blkImgProps["startY"],
+                    (i + 1) * blkImgProps["width"],
+                    blkImgProps["startY"] + blkImgProps["height"]
+                )) for i in range(COLOUR_COUNT)
             )
 
             # create output image
