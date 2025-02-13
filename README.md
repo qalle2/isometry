@@ -91,9 +91,14 @@ Bff0000
 * 0: none (transparent)
 * 1: black
 * 2: blue
-* 3: yellow
-* 4: white
-* 5&ndash;9: currently unsupported
+* 3: red
+* 4: yellow
+* 5: white
+* 6&ndash;9: currently unsupported
 
 ## Other files
 * `block-tT-wW-dD-hH.png`: the building blocks (small cubes); `T`/`W`/`H`/`D` are 3D coordinate type, width, height and depth.
+
+How the width, depth and height of a block are determined:
+
+![four blocks: type 1 and 2 with zero and nonzero depth](block-dimensions.png)

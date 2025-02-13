@@ -12,7 +12,7 @@ MARGIN_HORZ = 8
 MARGIN_VERT = 8
 
 # number of colours in block files, including transparent
-COLOUR_COUNT = 5
+COLOUR_COUNT = 6
 
 # --- helper functions --------------------------------------------------------
 
