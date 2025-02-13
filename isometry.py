@@ -243,8 +243,8 @@ def get_output_image_size(args, objWidth, objDepth, objHeight):
 
     return (imgWidth, imgHeight)
 
-def get_block_image_properties_type1(args):
-    # get properties of block image for 3D coords of type 1;
+def get_block_image_properties(args):
+    # get properties of block image;
     # args: command line arguments; return: dict
 
     # size of one block image
@@ -400,7 +400,7 @@ def main():
         args, objWidth, objDepth, objHeight
     )
 
-    blkImgProps = get_block_image_properties_type1(args)
+    blkImgProps = get_block_image_properties(args)
     blockFile = "block-t{}-w{}.png".format(args["coordType"], args["blkWidth"])
 
     # draw block images on output image
