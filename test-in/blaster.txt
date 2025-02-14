@@ -3,7 +3,7 @@
 W12
 D14
 H10
-B00ff00
+B80ff80
 
 # layer 1
 |
