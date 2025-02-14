@@ -14,21 +14,32 @@ MARGIN_VERT = 8
 # number of colours in block files, excluding color #0 (transparent)
 COLOUR_COUNT = 5
 
+# TODO: split depth in two
+# TODO: add support for blocks in 2nd column
+
 # what block sizes do block images contain and where
-# key:   (coordinate_type, width, depth, height)
+# key:   (width1, width2, depth1, depth2, height)
 # value: (column_in_image, row_in_image); see below
 BLOCK_FILE_BLOCKSETS = {
-    (1, 21, 16, 16): (0, 0),
-    (1, 21,  0, 21): (0, 1),
-    (2, 15,  8, 16): (1, 0),
-    (2, 15,  0, 21): (1, 1),
+    (21,  0, 16, 0, 16): (0, 0),
+    (21,  0,  0, 0, 21): (0, 1),
+    (19,  8,  0, 0, 21): (1, 1),
+    (15, 15,  8, 8, 16): (2, 0),
+    (15, 15,  0, 0, 21): (2, 1),
 }
-BLOCK_FILE_COLUMN_TO_X = (0, (21 + 1) * COLOUR_COUNT)
-BLOCK_FILE_ROW_TO_Y    = (0, 2 * 16 + 1)
+BLOCK_FILE_COLUMN_TO_X = (
+    0,
+    (21 + 1) * COLOUR_COUNT,
+    (21 + 1) * COLOUR_COUNT + 140,
+)
+BLOCK_FILE_ROW_TO_Y = (
+    0,
+    2 * 16 + 1,
+)
 
 BLOCK_FILE        = "blocks.png"  # read building blocks from here
-BLOCK_FILE_WIDTH  = (21 + 1 + 2 * 15 + 1) * COLOUR_COUNT
-BLOCK_FILE_HEIGHT = 2 * 16 + 1 + 21 + 1
+BLOCK_FILE_WIDTH  = (21 + 27 + 30 + 3) * COLOUR_COUNT
+BLOCK_FILE_HEIGHT = 32 + 21 + 2
 
 # --- helper functions --------------------------------------------------------
 
@@ -65,29 +76,38 @@ def get_lines(filename):
 def parse_args():
     # parse command line arguments; return a dict
 
-    if 7 <= len(sys.argv) <= 9:
+    if 8 <= len(sys.argv) <= 10:
         (
-            inputFile, outputFile, coordType,
-            blkWidth, blkDepth, blkHeight,
-        ) = sys.argv[1:7]
-        rotateAxes = sys.argv[7].upper() if len(sys.argv) >= 8 else ""
-        mirrorAxes = sys.argv[8].upper() if len(sys.argv) == 9 else ""
+            inputFile, outputFile,
+            blkWidth1, blkWidth2, blkDepth1, blkDepth2, blkHeight
+        ) = sys.argv[1:8]
+        rotateAxes = sys.argv[8].upper() if len(sys.argv) >=  9 else ""
+        mirrorAxes = sys.argv[9].upper() if len(sys.argv) == 10 else ""
     else:
         sys.exit(
-            "Arguments: inputFile outputFile 3dCoordinateType blkWidth "
-            "blkDepth blkHeight [axesToRotate] [axesToReverse]; see "
-            "README.md for details."
+            "Arguments: inputFile outputFile blkWidth1 blkWidth2 blkDepth1 "
+            "blkDepth2 blkHeight [axesToRotate] [axesToMirror]; see "
+            "README.md for details"
         )
 
-    coordType = decode_int(coordType, 1,   2)
-    blkWidth  = decode_int(blkWidth,  1, 256)
-    blkDepth  = decode_int(blkDepth,  0, 256)
+    blkWidth1 = decode_int(blkWidth1, 1, 256)
+    blkWidth2 = decode_int(blkWidth2, 0, 256)
+    blkDepth1 = decode_int(blkDepth1, 0, 256)
+    blkDepth2 = decode_int(blkDepth2, 0, 256)
     blkHeight = decode_int(blkHeight, 1, 256)
 
-    if (coordType, blkWidth, blkDepth, blkHeight) not in BLOCK_FILE_BLOCKSETS:
+    if not set(rotateAxes).issubset(set("XYZ")):
+        sys.exit("the rotateAxes argument may only contain letters X Y Z")
+    if not set(mirrorAxes).issubset(set("XYZ")):
+        sys.exit("the mirrorAxes argument may only contain letters X Y Z")
+
+    if (
+        (blkWidth1, blkWidth2, blkDepth1, blkDepth2, blkHeight)
+        not in BLOCK_FILE_BLOCKSETS
+    ):
         sys.exit(
-            "Combination of 3D coordinate type, block width, block depth and "
-            "block height is not supported."
+            "This combination of block widths, block depths and block height "
+            "is not supported."
         )
 
     if not os.path.isfile(inputFile):
@@ -98,9 +118,10 @@ def parse_args():
     return {
         "inputFile":  inputFile,
         "outputFile": outputFile,
-        "coordType":  coordType,
-        "blkWidth":   blkWidth,
-        "blkDepth":   blkDepth,
+        "blkWidth1":  blkWidth1,
+        "blkWidth2":  blkWidth2,
+        "blkDepth1":  blkDepth1,
+        "blkDepth2":  blkDepth2,
         "blkHeight":  blkHeight,
         "rotateAxes": rotateAxes,
         "mirrorAxes": mirrorAxes,
@@ -229,49 +250,18 @@ def get_output_image_size(args, objWidth, objDepth, objHeight):
     # obj*:   object size in blocks;
     # return: (width, height)
 
-    if args["coordType"] == 1:
-        imgWidth  = objWidth * args["blkWidth"]
-        imgHeight = objDepth * args["blkDepth"] + objHeight * args["blkHeight"]
-    else:
-        imgWidth = (objWidth + objDepth) * args["blkWidth"]
-        imgHeight = (
-            (objWidth + objDepth) * args["blkDepth"]
-            + objHeight * args["blkHeight"]
-        )
-
-    imgWidth  += MARGIN_HORZ * 2 + 1
-    imgHeight += MARGIN_VERT * 2 + 1
-
+    imgWidth = (
+          objWidth * args["blkWidth1"]
+        + objDepth * args["blkWidth2"]
+        + MARGIN_HORZ * 2 + 1
+    )
+    imgHeight = (
+          objWidth  * args["blkDepth2"]
+        + objDepth  * args["blkDepth1"]
+        + objHeight * args["blkHeight"]
+        + MARGIN_VERT * 2 + 1
+    )
     return (imgWidth, imgHeight)
-
-def get_block_image_properties(args):
-    # get properties of one block image;
-    # args: command line arguments; return: dict
-
-    # coordinates in block file
-    (col, row) = BLOCK_FILE_BLOCKSETS[(
-        args["coordType"],
-        args["blkWidth"],
-        args["blkDepth"],
-        args["blkHeight"]
-    )]
-    xPos = BLOCK_FILE_COLUMN_TO_X[col]
-    yPos = BLOCK_FILE_ROW_TO_Y[row]
-
-    # size
-    if args["coordType"] == 1:
-        width  = 1 + args["blkWidth"]
-        height = 1 + args["blkHeight"] + args["blkDepth"]
-    else:
-        width  = 1 + args["blkWidth"] * 2
-        height = 1 + args["blkDepth"] * 2 + args["blkHeight"]
-
-    return {
-        "x":      xPos,
-        "y":      yPos,
-        "width":  width,
-        "height": height,
-    }
 
 def get_coords_type1(width, depth, height):
     # generate 3D coordinates from rear to front for "type 1" blocks
@@ -294,27 +284,6 @@ def get_coords_type2(width, depth, height):
                 if 0 <= (z := xyzSum - x - y) < height:
                     yield (x, y, z)
 
-def convert_coords_type1(x, y, z, args):
-    # convert 3D coordinates to 2D for "type 1" blocks
-    #   Z
-    #   |
-    #   +--X  -->  +-- X
-    #   |          |
-    #   Y          Y
-    _2dX = x * args["blkWidth"]
-    _2dY = y * args["blkDepth"] - z * args["blkHeight"]
-    return (_2dX, _2dY)
-
-def convert_coords_type2(x, y, z, args):
-    # convert 3D coordinates to 2D for "type 2" blocks
-    #     Z
-    #     |    -->  +-- X
-    #    / \        |
-    #   Y   X       Y
-    _2dX = (x - y) * args["blkWidth"]
-    _2dY = (x + y) * args["blkDepth"] - z * args["blkHeight"]
-    return (_2dX, _2dY)
-
 def draw_blocks(object, blkImgs, outImg, args):
     # draw object on image
     # object:  colours of building blocks (tuple of tuples of tuples of ints)
@@ -327,15 +296,13 @@ def draw_blocks(object, blkImgs, outImg, args):
     objDepth  = len(object[0])
     objHeight = len(object)
 
-    # 3D coordinate generator, coordinate conversion function, 2D origin
-    if args["coordType"] == 1:
-        coord_gen     = get_coords_type1
-        coord_conv_fn = convert_coords_type1
-        originX       = MARGIN_HORZ
+    # 3D coordinate generator, 2D origin
+    if args["blkWidth2"] == 0:
+        coord_gen = get_coords_type1
+        originX   = MARGIN_HORZ
     else:
-        coord_gen     = get_coords_type2
-        coord_conv_fn = convert_coords_type2
-        originX       = MARGIN_HORZ + (objDepth - 1) * args["blkWidth"]
+        coord_gen = get_coords_type2
+        originX   = MARGIN_HORZ + (objDepth - 1) * args["blkWidth2"]
     originY = MARGIN_VERT + (objHeight - 1) * args["blkHeight"]
 
     # get 3D coordinates from rear to front
@@ -343,9 +310,17 @@ def draw_blocks(object, blkImgs, outImg, args):
         colour = object[z][y][x]
         if colour:
             # transform coordinates to 2D and paint a block there
-            (_2dX, _2dY) = coord_conv_fn(x, y, z, args)
-            _2dX += originX
-            _2dY += originY
+            _2dX = (
+                originX
+                + x * args["blkWidth1"]
+                - y * args["blkWidth2"]
+            )
+            _2dY = (
+                originY
+                + x * args["blkDepth2"]
+                + y * args["blkDepth1"]
+                - z * args["blkHeight"]
+            )
             outImg.alpha_composite(blkImgs[colour-1], dest=(_2dX, _2dY))
 
     return outImg
@@ -358,7 +333,7 @@ def main():
     args = parse_args()
     objProps = get_object_properties(args["inputFile"])
 
-    # get colours of building blocks
+    # get object data (colours of building blocks)
     objData = list(get_object_data(args["inputFile"]))
     if max(len(l) for l in objData) > objProps["width"]:
         sys.exit(
@@ -394,7 +369,20 @@ def main():
         args, objWidth, objDepth, objHeight
     )
 
-    blkImgProps = get_block_image_properties(args)
+    # get properties of one block image (coordinates in block file and size)
+    (col, row) = BLOCK_FILE_BLOCKSETS[(
+        args["blkWidth1"],
+        args["blkWidth2"],
+        args["blkDepth1"],
+        args["blkDepth2"],
+        args["blkHeight"]
+    )]
+    blkImgX = BLOCK_FILE_COLUMN_TO_X[col]
+    blkImgY = BLOCK_FILE_ROW_TO_Y[row]
+    blkImgWidth = 1 + args["blkWidth1"] + args["blkWidth2"]
+    blkImgHeight = (
+        1 + args["blkDepth1"] + args["blkDepth2"] + args["blkHeight"]
+    )
 
     # copy block images from block file to output image
     try:
@@ -412,10 +400,8 @@ def main():
             # (does not include color #0 (transparency))
             blkImgs = tuple(
                 blkImg.crop((
-                    blkImgProps["x"] + i * blkImgProps["width"],
-                    blkImgProps["y"],
-                    blkImgProps["x"] + (i + 1) * blkImgProps["width"],
-                    blkImgProps["y"] + blkImgProps["height"]
+                    blkImgX +  i      * blkImgWidth, blkImgY,
+                    blkImgX + (i + 1) * blkImgWidth, blkImgY + blkImgHeight
                 )) for i in range(COLOUR_COUNT)
             )
 

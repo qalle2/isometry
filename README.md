@@ -10,36 +10,25 @@ Table of contents:
 * [Other files](#other-files)
 
 ## 3D coordinates
-Two types of 3D coordinates are supported.
+* width: X+ = right and towards viewer
+* depth: Y+ = left and towards viewer
+* height: Z+ = up
 
-### Type 1
-* X+ = right
-* Y+ = towards viewer
-* Z+ = up
-* uses building blocks `block-t1-*.png`
+Examples with zero depth:
 
-Examples with zero/nonzero depth:
+![example 1 with zero depth](example-t1a.png)
+![example 2 with zero depth](example-t2a.png)
 
-![an example of "type 1" projection with zero depth](example-t1a.png)
-![an example of "type 1" projection with nonzero depth](example-t1b.png)
+Examples with nonzero depth:
 
-### Type 2
-* X+ = right and towards viewer
-* Y+ = left and towards viewer
-* Z+ = up
-* uses building blocks `block-t2-*.png`
-
-Examples with zero/nonzero depth:
-
-![an example of "type 2" projection with zero depth](example-t2a.png)
-![an example of "type 2" projection with nonzero depth](example-t2b.png)
+![example 1 with nonzero depth](example-t1b.png)
+![example 2 with nonzero depth](example-t2b.png)
 
 ## Command line arguments
-*inputFile outputFile 3dCoordinateType blockWidth blockDepth blockHeight axesToRotate axesToMirror*
+*inputFile outputFile blockWidth1 blockWidth2 blockDepth1 blockDepth2 blockHeight axesToRotate axesToMirror*
 * *inputFile*: file to read (describes the 3D object; see "input file" below)
 * *outputFile*: image file to write (PNG, RGB without alpha)
-* *3dCoordinateType*: 1 or 2 (see "3D coordinates" above)
-* *blockWidth, blockDepth, blockHeight*: size of building blocks (small cubes; see "notes" below)
+* *blockWidth1, blockWidth2, blockDepth1, blockDepth2, blockHeight*: size of building blocks (small cubes; see "notes" below)
 * *axesToRotate*:
   * a string consisting of the characters `X`, `Y`, `Z`; zero to three of each
   * for each character, the object will be rotated 90 degrees counterclockwise around that axis
@@ -54,11 +43,12 @@ Examples with zero/nonzero depth:
 
 Notes:
 * All arguments except *axesToRotate* and *axesToMirror* are required.
-* Only these combinations of *3dCoordinateType*, *blockWidth*, *blockDepth* and *blockHeight* are supported (see also "other files" below):
-  * 1 21 0 21
-  * 1 21 16 16
-  * 2 15 0 21
-  * 2 15 8 16
+* Only these combinations of *blockWidth1*, *blockWidth2*, *blockDepth* and *blockHeight* are supported (see also "other files" below):
+  * 21 0 0 0 21
+  * 21 0 16 0 16
+  * 19 8 0 0 21
+  * 15 15 0 0 21
+  * 15 15 8 8 16
 
 ## Input file
 * Describes the 3D object to draw.
