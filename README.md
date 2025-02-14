@@ -25,10 +25,11 @@ Examples with nonzero depth:
 ![example 2 with nonzero depth](example-t2b.png)
 
 ## Command line arguments
-*inputFile outputFile blockWidth1 blockWidth2 blockDepth1 blockDepth2 blockHeight axesToRotate axesToMirror*
+*inputFile outputFile fineZRotation fineXRotation axesToRotate axesToMirror*
 * *inputFile*: file to read (describes the 3D object; see "input file" below)
 * *outputFile*: image file to write (PNG, RGB without alpha)
-* *blockWidth1, blockWidth2, blockDepth1, blockDepth2, blockHeight*: size of building blocks (small cubes; see "notes" below)
+* *fineZRotation*: how much to rotate the object clockwise around its vertical axis in 22.5-degree increments; integer, 0 to 2
+* *fineXRotation*: how much to rotate the object by "rolling it towards the viewer" in 22.5-degree increments; integer, 0 or 2
 * *axesToRotate*:
   * a string consisting of the characters `X`, `Y`, `Z`; zero to three of each
   * for each character, the object will be rotated 90 degrees counterclockwise around that axis
@@ -38,17 +39,11 @@ Examples with nonzero depth:
 * *axesToMirror*:
   * a string consisting of the characters `X`, `Y` and `Z`; zero or one of each
   * for each character, the object will be mirrored along that axis
+  * the order of the characters does not matter
   * optional (default is no mirroring)
   * case insensitive
 
-Notes:
-* All arguments except *axesToRotate* and *axesToMirror* are required.
-* Only these combinations of *blockWidth1*, *blockWidth2*, *blockDepth* and *blockHeight* are supported (see also "other files" below):
-  * 21 0 0 0 21
-  * 21 0 16 0 16
-  * 19 8 0 0 21
-  * 15 15 0 0 21
-  * 15 15 8 8 16
+Note: all arguments except *axesToRotate* and *axesToMirror* are required.
 
 ## Input file
 * Describes the 3D object to draw.
@@ -95,6 +90,6 @@ Bff0000
 
 ![the building blocks](blocks.png)
 
-How the width, depth and height of a block are determined:
+How the width, depth and height of a block are determined (out of date):
 
 ![four blocks: type 1 and 2 with zero and nonzero depth](block-dimensions.png)

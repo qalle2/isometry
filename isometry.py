@@ -14,43 +14,62 @@ MARGIN_VERT = 8
 # number of colours in block files, excluding color #0 (transparent)
 COLOUR_COUNT = 5
 
-# TODO: split depth in two
-# TODO: add support for blocks in 2nd column
+# note regarding width1, width2:
+#     19 = approx. 21*cos(22.5 deg)
+#      8 = approx. 21*sin(22.5 deg)
 
-# what block sizes do block images contain and where
-# key:   (width1, width2, depth1, depth2, height)
-# value: (column_in_image, row_in_image); see below
-BLOCK_FILE_BLOCKSETS = {
-    (21,  0, 16, 0, 16): (0, 0),
-    (21,  0,  0, 0, 21): (0, 1),
-    (19,  8,  0, 0, 21): (1, 1),
-    (15, 15,  8, 8, 16): (2, 0),
-    (15, 15,  0, 0, 21): (2, 1),
+# key:   (fine_Z_rotation, fine_X_rotation)       from command line
+# value: (width1, width2, depth1, depth2, height) of a block
+FINE_ROTATION_TO_BLOCK_SIZE = {
+    (0, 0): (21, 0,  0, 0, 21),
+    (1, 0): (19, 8,  0, 0, 21),
+    (2, 0): (15,15,  0, 0, 21),
+    (3, 0): ( 8,19,  0, 0, 21),
+    #
+    (0, 2): (21, 0, 16, 0, 16),
+    (1, 2): (19, 8, 12, 4, 16),
+    (2, 2): (15,15,  8, 8, 16),
+    (3, 2): ( 8,19,  4,12, 16),
 }
-BLOCK_FILE_COLUMN_TO_X = (
-    0,
-    (21 + 1) * COLOUR_COUNT,
-    (21 + 1) * COLOUR_COUNT + 140,
+
+# key:   (width1, width2, depth1, depth2, height) of a block
+# value: (column, row)                            in block file
+BLOCK_FILE_BLOCKSETS = {
+    (21, 0,  0, 0, 21): (0, 1),
+    (19, 8,  0, 0, 21): (1, 1),
+    (15,15,  0, 0, 21): (2, 1),
+    ( 8,19,  0, 0, 21): (3, 1),
+    #
+    (21, 0, 16, 0, 16): (0, 0),
+    (19, 8, 12, 4, 16): (1, 0),
+    (15,15,  8, 8, 16): (2, 0),
+    ( 8,19,  4,12, 16): (3, 0),
+}
+assert set(BLOCK_FILE_BLOCKSETS) == set(FINE_ROTATION_TO_BLOCK_SIZE.values())
+
+BLOCK_FILE_COLUMN_WIDTHS = (  # must include the last column
+    (21      + 1) * COLOUR_COUNT,
+    (19 +  8 + 1) * COLOUR_COUNT,
+    (15 + 15 + 1) * COLOUR_COUNT,
+    ( 8 + 19 + 1) * COLOUR_COUNT,
 )
-BLOCK_FILE_ROW_TO_Y = (
-    0,
-    2 * 16 + 1,
+BLOCK_FILE_ROW_HEIGHTS = (  # must include the last row
+    16 + 16 + 1,
+    21      + 1,
 )
 
-BLOCK_FILE        = "blocks.png"  # read building blocks from here
-BLOCK_FILE_WIDTH  = (21 + 27 + 30 + 3) * COLOUR_COUNT
-BLOCK_FILE_HEIGHT = 32 + 21 + 2
+BLOCK_FILE = "blocks.png"  # read building blocks from here
 
 # --- helper functions --------------------------------------------------------
 
-def decode_int(stri, min_, max_):
+def decode_int(stri, min_, max_, name):
     # decode an integer
     try:
         i = int(stri, 10)
         if not min_ <= i <= max_:
             raise ValueError
     except ValueError:
-        sys.exit(f"Expected an integer between {min_}-{max_}.")
+        sys.exit(f"{name} must be an integer between {min_}-{max_}")
     return i
 
 def decode_colour_code(colour):
@@ -76,39 +95,30 @@ def get_lines(filename):
 def parse_args():
     # parse command line arguments; return a dict
 
-    if 8 <= len(sys.argv) <= 10:
-        (
-            inputFile, outputFile,
-            blkWidth1, blkWidth2, blkDepth1, blkDepth2, blkHeight
-        ) = sys.argv[1:8]
-        rotateAxes = sys.argv[8].upper() if len(sys.argv) >=  9 else ""
-        mirrorAxes = sys.argv[9].upper() if len(sys.argv) == 10 else ""
+    if 5 <= len(sys.argv) <= 7:
+        (inputFile, outputFile, fineZRot, fineXRot) = sys.argv[1:5]
+        rotateAxes = sys.argv[5].upper() if len(sys.argv) >= 6 else ""
+        mirrorAxes = sys.argv[6].upper() if len(sys.argv) == 7 else ""
     else:
         sys.exit(
-            "Arguments: inputFile outputFile blkWidth1 blkWidth2 blkDepth1 "
-            "blkDepth2 blkHeight [axesToRotate] [axesToMirror]; see "
-            "README.md for details"
+            "Arguments: inputFile outputFile fineZRotation fineXRotation "
+            "[axesToRotate] [axesToMirror]; see README.md for details"
         )
 
-    blkWidth1 = decode_int(blkWidth1, 1, 256)
-    blkWidth2 = decode_int(blkWidth2, 0, 256)
-    blkDepth1 = decode_int(blkDepth1, 0, 256)
-    blkDepth2 = decode_int(blkDepth2, 0, 256)
-    blkHeight = decode_int(blkHeight, 1, 256)
+    # get block width, depth, height from fine rotations
+    fineZRot = decode_int(fineZRot, 0, 3, "fineZRotation")
+    fineXRot = decode_int(fineXRot, 0, 3, "fineXRotation")
+    try:
+        (blkWidth1, blkWidth2, blkDepth1, blkDepth2, blkHeight) = (
+            FINE_ROTATION_TO_BLOCK_SIZE[(fineZRot, fineXRot)]
+        )
+    except KeyError:
+        sys.exit("This combination of fine rotations is not supported.")
 
     if not set(rotateAxes).issubset(set("XYZ")):
         sys.exit("the rotateAxes argument may only contain letters X Y Z")
     if not set(mirrorAxes).issubset(set("XYZ")):
         sys.exit("the mirrorAxes argument may only contain letters X Y Z")
-
-    if (
-        (blkWidth1, blkWidth2, blkDepth1, blkDepth2, blkHeight)
-        not in BLOCK_FILE_BLOCKSETS
-    ):
-        sys.exit(
-            "This combination of block widths, block depths and block height "
-            "is not supported."
-        )
 
     if not os.path.isfile(inputFile):
         sys.exit(f"{inputFile} not found.")
@@ -138,11 +148,11 @@ def get_object_properties(inputFile):
 
     for line in get_lines(inputFile):
         if line.upper().startswith("W"):
-            width = decode_int(line[1:], 1, 256)
+            width = decode_int(line[1:], 1, 256, "object width")
         elif line.upper().startswith("D"):
-            depth = decode_int(line[1:], 1, 256)
+            depth = decode_int(line[1:], 1, 256, "object depth")
         elif line.upper().startswith("H"):
-            height = decode_int(line[1:], 1, 256)
+            height = decode_int(line[1:], 1, 256, "object height")
         elif line.upper().startswith("B"):
             bgColour = decode_colour_code(line[1:])
         elif not line.startswith("|") and not line.startswith("#"):
@@ -377,8 +387,8 @@ def main():
         args["blkDepth2"],
         args["blkHeight"]
     )]
-    blkImgX = BLOCK_FILE_COLUMN_TO_X[col]
-    blkImgY = BLOCK_FILE_ROW_TO_Y[row]
+    blkImgX = sum(BLOCK_FILE_COLUMN_WIDTHS[:col])
+    blkImgY = sum(BLOCK_FILE_ROW_HEIGHTS[:row])
     blkImgWidth = 1 + args["blkWidth1"] + args["blkWidth2"]
     blkImgHeight = (
         1 + args["blkDepth1"] + args["blkDepth2"] + args["blkHeight"]
@@ -391,10 +401,10 @@ def main():
             blkImg = Image.open(handle)
             if blkImg.mode != "RGBA":
                 sys.exit("Block image must be in RGBA format.")
-            if blkImg.width != BLOCK_FILE_WIDTH:
-                sys.exit(f"Block image width must be {BLOCK_FILE_WIDTH}.")
-            if blkImg.height != BLOCK_FILE_HEIGHT:
-                sys.exit(f"Block image height must be {BLOCK_FILE_HEIGHT}.")
+            if blkImg.width != sum(BLOCK_FILE_COLUMN_WIDTHS):
+                sys.exit(f"Incorrect width of block image.")
+            if blkImg.height != sum(BLOCK_FILE_ROW_HEIGHTS):
+                sys.exit(f"Incorrect height of block image.")
 
             # get each colour variant of block image as separate image
             # (does not include color #0 (transparency))
