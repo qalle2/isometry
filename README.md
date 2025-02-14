@@ -54,7 +54,11 @@ Examples with zero/nonzero depth:
 
 Notes:
 * All arguments except *axesToRotate* and *axesToMirror* are required.
-* A combination of *3dCoordinateType*, *blockWidth*, *blockDepth* and *blockHeight* requires the corresponding building block file (see "other files" below).
+* Only these combinations of *3dCoordinateType*, *blockWidth*, *blockDepth* and *blockHeight* are supported (see also "other files" below):
+  * 1 21 0 21
+  * 1 21 16 16
+  * 2 15 0 21
+  * 2 15 8 16
 
 ## Input file
 * Describes the 3D object to draw.
@@ -97,7 +101,9 @@ Bff0000
 * 6&ndash;9: currently unsupported
 
 ## Other files
-* `block-tT-wW.png`: the building blocks (small cubes); `T` = 3D coordinate type, `W` = width
+`blocks.png` contains the building blocks (small cubes); it's read programmatically:
+
+![the building blocks](blocks.png)
 
 How the width, depth and height of a block are determined:
 

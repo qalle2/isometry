@@ -1,7 +1,7 @@
 # Draw an isometric image consisting of building blocks (small cubes).
 # See README.md.
 
-import itertools, os, sys
+import os, sys
 try:
     from PIL import Image
 except ImportError:
@@ -11,17 +11,24 @@ except ImportError:
 MARGIN_HORZ = 8
 MARGIN_VERT = 8
 
-# number of colours in block files, including transparent
-COLOUR_COUNT = 6
+# number of colours in block files, excluding color #0 (transparent)
+COLOUR_COUNT = 5
 
-# what block sizes do block images contain
-# key:   (coordinate_type, width)
-# value: ((depth1, height1), ...) from top to bottom
-# there must be a corresponding file "block-tT-wW.png" for each key
-BLOCK_FILES = {
-    (1, 21): ((16, 16), (0, 21)),
-    (2, 15): (( 8, 16), (0, 21)),
+# what block sizes do block images contain and where
+# key:   (coordinate_type, width, depth, height)
+# value: (column_in_image, row_in_image); see below
+BLOCK_FILE_BLOCKSETS = {
+    (1, 21, 16, 16): (0, 0),
+    (1, 21,  0, 21): (0, 1),
+    (2, 15,  8, 16): (1, 0),
+    (2, 15,  0, 21): (1, 1),
 }
+BLOCK_FILE_COLUMN_TO_X = (0, (21 + 1) * COLOUR_COUNT)
+BLOCK_FILE_ROW_TO_Y    = (0, 2 * 16 + 1)
+
+BLOCK_FILE        = "blocks.png"  # read building blocks from here
+BLOCK_FILE_WIDTH  = (21 + 1 + 2 * 15 + 1) * COLOUR_COUNT
+BLOCK_FILE_HEIGHT = 2 * 16 + 1 + 21 + 1
 
 # --- helper functions --------------------------------------------------------
 
@@ -77,10 +84,7 @@ def parse_args():
     blkDepth  = decode_int(blkDepth,  0, 256)
     blkHeight = decode_int(blkHeight, 1, 256)
 
-    if (
-        (coordType, blkWidth) not in BLOCK_FILES
-        or (blkDepth, blkHeight) not in BLOCK_FILES[(coordType, blkWidth)]
-    ):
+    if (coordType, blkWidth, blkDepth, blkHeight) not in BLOCK_FILE_BLOCKSETS:
         sys.exit(
             "Combination of 3D coordinate type, block width, block depth and "
             "block height is not supported."
@@ -88,9 +92,6 @@ def parse_args():
 
     if not os.path.isfile(inputFile):
         sys.exit(f"{inputFile} not found.")
-    blockFile = "block-t{}-w{}.png".format(coordType, blkWidth)
-    if not os.path.isfile(blockFile):
-        sys.exit(f"{blockFile} not found.")
     if os.path.exists(outputFile):
         sys.exit(f"{outputFile} already exists.")
 
@@ -130,7 +131,7 @@ def get_object_properties(inputFile):
         sys.exit("Must define width, depth, height and background colour.")
 
     return {
-        "width"   : width,
+        "width":    width,
         "depth":    depth,
         "height":   height,
         "bgColour": bgColour,
@@ -244,123 +245,116 @@ def get_output_image_size(args, objWidth, objDepth, objHeight):
     return (imgWidth, imgHeight)
 
 def get_block_image_properties(args):
-    # get properties of block image;
+    # get properties of one block image;
     # args: command line arguments; return: dict
 
-    # size of one block image
-    if args["coordType"] == 1:
-        imgWidth  = 1 + args["blkWidth"]
-        imgHeight = 1 + args["blkHeight"] + args["blkDepth"]
-    else:
-        imgWidth  = 1 + args["blkWidth"] * 2
-        imgHeight = 1 + args["blkDepth"] * 2 + args["blkHeight"]
+    # coordinates in block file
+    (col, row) = BLOCK_FILE_BLOCKSETS[(
+        args["coordType"],
+        args["blkWidth"],
+        args["blkDepth"],
+        args["blkHeight"]
+    )]
+    xPos = BLOCK_FILE_COLUMN_TO_X[col]
+    yPos = BLOCK_FILE_ROW_TO_Y[row]
 
-    # start Y position in file
-    imgStartY = 0
-    for (depth, height) in BLOCK_FILES[(args["coordType"], args["blkWidth"])]:
-        if depth == args["blkDepth"] and height == args["blkHeight"]:
-            break
-        elif args["coordType"] == 1:
-            imgStartY += depth + height + 1
-        else:
-            imgStartY += depth * 2 + height + 1
-
-    # file dimensions
-    totalWidth = imgWidth * COLOUR_COUNT
-    rows = BLOCK_FILES[(args["coordType"], args["blkWidth"])]
+    # size
     if args["coordType"] == 1:
-        totalHeight = sum(d + h + 1 for (d, h) in rows)
+        width  = 1 + args["blkWidth"]
+        height = 1 + args["blkHeight"] + args["blkDepth"]
     else:
-        totalHeight = sum(d * 2 + h + 1 for (d, h) in rows)
+        width  = 1 + args["blkWidth"] * 2
+        height = 1 + args["blkDepth"] * 2 + args["blkHeight"]
 
     return {
-        "width":       imgWidth,
-        "height":      imgHeight,
-        "startY":      imgStartY,
-        "totalWidth":  totalWidth,
-        "totalHeight": totalHeight,
+        "x":      xPos,
+        "y":      yPos,
+        "width":  width,
+        "height": height,
     }
 
-def get_type1_coords(width, depth, height):
-    # generate 3D coordinates (x, y, z) from rear to front for "type 1" blocks
+def get_coords_type1(width, depth, height):
+    # generate 3D coordinates from rear to front for "type 1" blocks
     # (from smallest to largest y+z)
 
     for yzSum in range(0, depth + height + 1):
-        for (y, z) in itertools.product(range(depth), range(height)):
-            if y + z == yzSum:
+        # y + z must equal yzSum
+        for y in range(depth):
+            if 0 <= (z := yzSum - y) < height:
                 yield from ((x, y, z) for x in range(width))
 
-def get_type2_coords(width, depth, height):
-    # generate 3D coordinates (x, y, z) from rear to front for "type 2" blocks
+def get_coords_type2(width, depth, height):
+    # generate 3D coordinates from rear to front for "type 2" blocks
     # (from smallest to largest x+y+z)
 
-    for coordSum in range(0, width + depth + height + 1):
-        yield from (
-            coords for coords
-            in itertools.product(range(width), range(depth), range(height))
-            if sum(coords) == coordSum
-        )
+    for xyzSum in range(0, width + depth + height + 1):
+        # x + y + z must equal xyzSum
+        for x in range(width):
+            for y in range(depth):
+                if 0 <= (z := xyzSum - x - y) < height:
+                    yield (x, y, z)
 
-def draw_blocks_type1(object, blkImgs, outImg, blkWidth, blkDepth, blkHeight):
-    # draw object on image using "type 1" blocks (see readme);
-    # object:  colours of building blocks (tuple of tuples of tuples of ints)
-    # blkImgs: list of building blocks (one colour variant/image)
-    # outImg:  image to paint to
-
-    # object size in blocks
-    objWidth  = len(object[0][0])
-    objDepth  = len(object[0])
-    objHeight = len(object)
-
-    # 2D origin
-    originX = MARGIN_HORZ
-    originY = MARGIN_VERT + (objHeight - 1) * blkHeight
-
-    # get 3D coordinates from rear to front and transform them to 2D
+def convert_coords_type1(x, y, z, args):
+    # convert 3D coordinates to 2D for "type 1" blocks
     #   Z
     #   |
     #   +--X  -->  +-- X
     #   |          |
     #   Y          Y
-    for (x, y, z) in get_type1_coords(objWidth, objDepth, objHeight):
-        _2dX = originX + x * blkWidth
-        _2dY = originY + y * blkDepth - z * blkHeight
-        colour = object[z][y][x]
-        outImg.alpha_composite(blkImgs[colour], dest=(_2dX, _2dY))
+    _2dX = x * args["blkWidth"]
+    _2dY = y * args["blkDepth"] - z * args["blkHeight"]
+    return (_2dX, _2dY)
 
-    return outImg
+def convert_coords_type2(x, y, z, args):
+    # convert 3D coordinates to 2D for "type 2" blocks
+    #     Z
+    #     |    -->  +-- X
+    #    / \        |
+    #   Y   X       Y
+    _2dX = (x - y) * args["blkWidth"]
+    _2dY = (x + y) * args["blkDepth"] - z * args["blkHeight"]
+    return (_2dX, _2dY)
 
-def draw_blocks_type2(object, blkImgs, outImg, blkWidth, blkDepth, blkHeight):
-    # draw object on image using "type 2" blocks (see readme);
+def draw_blocks(object, blkImgs, outImg, args):
+    # draw object on image
     # object:  colours of building blocks (tuple of tuples of tuples of ints)
     # blkImgs: list of building blocks (one colour variant/image)
     # outImg:  image to paint to
+    # args:    command line arguments
 
     # object size in blocks
     objWidth  = len(object[0][0])
     objDepth  = len(object[0])
     objHeight = len(object)
 
-    # 2D origin
-    originX = MARGIN_HORZ + (objDepth  - 1) * blkWidth
-    originY = MARGIN_VERT + (objHeight - 1) * blkHeight
+    # 3D coordinate generator, coordinate conversion function, 2D origin
+    if args["coordType"] == 1:
+        coord_gen     = get_coords_type1
+        coord_conv_fn = convert_coords_type1
+        originX       = MARGIN_HORZ
+    else:
+        coord_gen     = get_coords_type2
+        coord_conv_fn = convert_coords_type2
+        originX       = MARGIN_HORZ + (objDepth - 1) * args["blkWidth"]
+    originY = MARGIN_VERT + (objHeight - 1) * args["blkHeight"]
 
-    # get 3D coordinates from rear to front and transform them to 2D
-    #     Z
-    #     |    -->  +-- X
-    #    / \        |
-    #   Y   X       Y
-    for (x, y, z) in get_type2_coords(objWidth, objDepth, objHeight):
-        _2dX = originX + (x - y) * blkWidth
-        _2dY = originY + (x + y) * blkDepth - z * blkHeight
+    # get 3D coordinates from rear to front
+    for (x, y, z) in coord_gen(objWidth, objDepth, objHeight):
         colour = object[z][y][x]
-        outImg.alpha_composite(blkImgs[colour], dest=(_2dX, _2dY))
+        if colour:
+            # transform coordinates to 2D and paint a block there
+            (_2dX, _2dY) = coord_conv_fn(x, y, z, args)
+            _2dX += originX
+            _2dY += originY
+            outImg.alpha_composite(blkImgs[colour-1], dest=(_2dX, _2dY))
 
     return outImg
 
 # --- main --------------------------------------------------------------------
 
 def main():
+    if not os.path.isfile(BLOCK_FILE):
+        sys.exit(f"{BLOCK_FILE} not found.")
     args = parse_args()
     objProps = get_object_properties(args["inputFile"])
 
@@ -375,8 +369,8 @@ def main():
             f"Must have {objProps['height']*objProps['depth']} lines starting "
             f"with '|'."
         )
-    if max((max(l) if l else 0) for l in objData) > COLOUR_COUNT - 1:
-        sys.exit(f"Can't have colour numbers greater than {COLOUR_COUNT-1}.")
+    if max((max(l) if l else 0) for l in objData) > COLOUR_COUNT:
+        sys.exit(f"Can't have colour numbers greater than {COLOUR_COUNT}.")
 
     # pad each line of blocks to (object width) integers
     objData = [l + (objProps["width"] - len(l)) * (0,) for l in objData]
@@ -401,32 +395,27 @@ def main():
     )
 
     blkImgProps = get_block_image_properties(args)
-    blockFile = "block-t{}-w{}.png".format(args["coordType"], args["blkWidth"])
 
-    # draw block images on output image
+    # copy block images from block file to output image
     try:
-        with open(blockFile, "rb") as handle:
-            # open and validate block image
+        with open(BLOCK_FILE, "rb") as handle:
             handle.seek(0)
             blkImg = Image.open(handle)
             if blkImg.mode != "RGBA":
                 sys.exit("Block image must be in RGBA format.")
-            if blkImg.width != blkImgProps["totalWidth"]:
-                sys.exit(
-                    f"Block image width must be {blkImgProps['totalWidth']}."
-                )
-            if blkImg.height != blkImgProps["totalHeight"]:
-                sys.exit(
-                    f"Block image height must be {blkImgProps['totalHeight']}."
-                )
+            if blkImg.width != BLOCK_FILE_WIDTH:
+                sys.exit(f"Block image width must be {BLOCK_FILE_WIDTH}.")
+            if blkImg.height != BLOCK_FILE_HEIGHT:
+                sys.exit(f"Block image height must be {BLOCK_FILE_HEIGHT}.")
 
             # get each colour variant of block image as separate image
+            # (does not include color #0 (transparency))
             blkImgs = tuple(
                 blkImg.crop((
-                    i * blkImgProps["width"],
-                    blkImgProps["startY"],
-                    (i + 1) * blkImgProps["width"],
-                    blkImgProps["startY"] + blkImgProps["height"]
+                    blkImgProps["x"] + i * blkImgProps["width"],
+                    blkImgProps["y"],
+                    blkImgProps["x"] + (i + 1) * blkImgProps["width"],
+                    blkImgProps["y"] + blkImgProps["height"]
                 )) for i in range(COLOUR_COUNT)
             )
 
@@ -437,15 +426,9 @@ def main():
             )
 
             # draw output image
-            func = {
-                1: draw_blocks_type1, 2: draw_blocks_type2
-            }[args["coordType"]]
-            func(
-                objData, blkImgs, outImg,
-                args["blkWidth"], args["blkDepth"], args["blkHeight"]
-            )
+            draw_blocks(objData, blkImgs, outImg, args)
     except OSError:
-        sys.exit(f"Error reading {blockFile}")
+        sys.exit(f"Error reading {BLOCK_FILE}")
 
     # remove alpha channel from output image
     outImg = outImg.convert("RGB")

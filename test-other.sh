@@ -2,6 +2,8 @@
 
 rm -f test-out/*.png
 
+echo "== These should not cause errors =="
+
 python3 isometry.py test-in/axes.txt test-out/axes-t1a.png 1 21  0 21
 python3 isometry.py test-in/axes.txt test-out/axes-t1b.png 1 21 16 16
 python3 isometry.py test-in/axes.txt test-out/axes-t2a.png 2 15  0 21
@@ -27,3 +29,12 @@ python3 isometry.py test-in/octahedron1.txt test-out/octahedron1-t2.png 2 15  8 
 
 python3 isometry.py test-in/octahedron2.txt test-out/octahedron2-t1.png 1 21 16 16
 python3 isometry.py test-in/octahedron2.txt test-out/octahedron2-t2.png 2 15  8 16
+
+echo
+
+echo "== These should cause four distinct errors =="
+python3 isometry.py test-in/axes.txt    test-out/axes-t1a.png 0  0  0  0
+python3 isometry.py test-in/axes.txt    test-out/axes-t1a.png 1 99 99 99
+python3 isometry.py test-in/nonexistent test-out/axes-t1a.png 1 21  0 21
+python3 isometry.py test-in/axes.txt    test-out/axes-t1a.png 1 21  0 21
+echo
