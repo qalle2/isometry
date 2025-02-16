@@ -11,7 +11,7 @@ except ImportError:
 MARGIN_HORZ = 8
 MARGIN_VERT = 8
 
-# number of colours in block files, excluding color #0 (transparent)
+# number of colours in block files, excluding colour #0 (transparent)
 COLOUR_COUNT = 5
 
 # note regarding width1, width2:
@@ -21,44 +21,45 @@ COLOUR_COUNT = 5
 # key:   (fine_Z_rotation, fine_X_rotation)       from command line
 # value: (width1, width2, depth1, depth2, height) of a block
 FINE_ROTATION_TO_BLOCK_SIZE = {
-    (0, 0): (21, 0,  0, 0, 21),
-    (1, 0): (19, 8,  0, 0, 21),
-    (2, 0): (15,15,  0, 0, 21),
-    (3, 0): ( 8,19,  0, 0, 21),
+    (0, 0): (20, 0,  0, 0, 20),
+    (1, 0): (18, 8,  0, 0, 20),
+    (2, 0): (14,14,  0, 0, 20),
+    (3, 0): ( 8,18,  0, 0, 20),
     #
-    (0, 2): (21, 0, 16, 0, 16),
-    (1, 2): (19, 8, 12, 4, 16),
-    (2, 2): (15,15,  8, 8, 16),
-    (3, 2): ( 8,19,  4,12, 16),
+    (0, 2): (20, 0, 14, 0, 14),
+    (1, 2): (18, 8, 12, 4, 15),
+    (2, 2): (14,14,  8, 9, 17),
+    (3, 2): ( 8,18,  4,12, 15),
 }
 
 # key:   (width1, width2, depth1, depth2, height) of a block
 # value: (column, row)                            in block file
 BLOCK_FILE_BLOCKSETS = {
-    (21, 0,  0, 0, 21): (0, 1),
-    (19, 8,  0, 0, 21): (1, 1),
-    (15,15,  0, 0, 21): (2, 1),
-    ( 8,19,  0, 0, 21): (3, 1),
+    (20, 0,  0, 0, 20): (0, 1),
+    (18, 8,  0, 0, 20): (1, 1),
+    (14,14,  0, 0, 20): (2, 1),
+    ( 8,18,  0, 0, 20): (3, 1),
     #
-    (21, 0, 16, 0, 16): (0, 0),
-    (19, 8, 12, 4, 16): (1, 0),
-    (15,15,  8, 8, 16): (2, 0),
-    ( 8,19,  4,12, 16): (3, 0),
+    (20, 0, 14, 0, 14): (0, 0),
+    (18, 8, 12, 4, 15): (1, 0),
+    (14,14,  8, 9, 17): (2, 0),
+    ( 8,18,  4,12, 15): (3, 0),
 }
 assert set(BLOCK_FILE_BLOCKSETS) == set(FINE_ROTATION_TO_BLOCK_SIZE.values())
 
 BLOCK_FILE_COLUMN_WIDTHS = (  # must include the last column
-    (21      + 1) * COLOUR_COUNT,
-    (19 +  8 + 1) * COLOUR_COUNT,
-    (15 + 15 + 1) * COLOUR_COUNT,
-    ( 8 + 19 + 1) * COLOUR_COUNT,
+    (20      + 1) * COLOUR_COUNT,
+    (18 +  8 + 1) * COLOUR_COUNT,
+    (14 + 14 + 1) * COLOUR_COUNT,
+    ( 8 + 18 + 1) * COLOUR_COUNT,
 )
 BLOCK_FILE_ROW_HEIGHTS = (  # must include the last row
-    16 + 16 + 1,
-    21      + 1,
+    34 + 1,
+    20 + 1,
 )
 
-BLOCK_FILE = "blocks.png"  # read building blocks from here
+# read building blocks from here
+BLOCK_FILE = "blocks.png"
 
 # --- helper functions --------------------------------------------------------
 
@@ -402,12 +403,12 @@ def main():
             if blkImg.mode != "RGBA":
                 sys.exit("Block image must be in RGBA format.")
             if blkImg.width != sum(BLOCK_FILE_COLUMN_WIDTHS):
-                sys.exit(f"Incorrect width of block image.")
+                sys.exit("Incorrect width of block file.")
             if blkImg.height != sum(BLOCK_FILE_ROW_HEIGHTS):
-                sys.exit(f"Incorrect height of block image.")
+                sys.exit("Incorrect height of block file.")
 
             # get each colour variant of block image as separate image
-            # (does not include color #0 (transparency))
+            # (does not include colour #0 (transparency))
             blkImgs = tuple(
                 blkImg.crop((
                     blkImgX +  i      * blkImgWidth, blkImgY,
