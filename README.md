@@ -10,19 +10,17 @@ Table of contents:
 * [Other files](#other-files)
 
 ## 3D coordinates
-* width: X+ = right and towards viewer
-* depth: Y+ = left and towards viewer
-* height: Z+ = up
+* width: X+ = right and possibly towards viewer
+* depth: Y+ = towards viewer and possibly left
+* height: Z+ = up and possibly towards viewer
 
-Examples with zero depth:
+Examples without X rotation and varying Z rotation:
 
-![example 1 with zero depth](example-t1a.png)
-![example 2 with zero depth](example-t2a.png)
+![examples without X rotation](example-xrot0.png)
 
-Examples with nonzero depth:
+Examples with 45-degree X rotation and varying Z rotation:
 
-![example 1 with nonzero depth](example-t1b.png)
-![example 2 with nonzero depth](example-t2b.png)
+![examples with 45-degree X rotation](example-xrot45.png)
 
 ## Command line arguments
 *inputFile outputFile fineZRotation fineXRotation axesToRotate axesToMirror*

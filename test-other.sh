@@ -4,15 +4,6 @@ rm -f test-out/*.png
 
 echo "== These should not cause errors =="
 
-python3 isometry.py test-in/axes.txt test-out/axes-1a.png 0 0
-python3 isometry.py test-in/axes.txt test-out/axes-1b.png 1 0
-python3 isometry.py test-in/axes.txt test-out/axes-1c.png 2 0
-python3 isometry.py test-in/axes.txt test-out/axes-1d.png 3 0
-python3 isometry.py test-in/axes.txt test-out/axes-2a.png 0 2
-python3 isometry.py test-in/axes.txt test-out/axes-2b.png 1 2
-python3 isometry.py test-in/axes.txt test-out/axes-2c.png 2 2
-python3 isometry.py test-in/axes.txt test-out/axes-2d.png 3 2
-
 python3 isometry.py test-in/cube1x1x1.txt test-out/cube1x1x1-1.png 0 2
 python3 isometry.py test-in/cube1x1x1.txt test-out/cube1x1x1-2.png 2 2
 
