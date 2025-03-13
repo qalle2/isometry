@@ -1,9 +1,8 @@
 # Nanoblock Lucario
 # https://shop.bandai.com/lucario-pokemon-nanoblock-pokemon-series-box-6.html
-# actually only 17 units deep but feet centered depthwise
 
 W14
-D22
+D17
 H23
 Baaaaaa
 
@@ -25,11 +24,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 2
 |
@@ -43,11 +37,6 @@ Baaaaaa
 |
 |
 |   11    11
-|
-|
-|
-|
-|
 |
 |
 |
@@ -73,11 +62,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 4
 |
@@ -93,11 +77,6 @@ Baaaaaa
 |  2222  2222
 |  2222  2222
 |   22    22
-|
-|
-|
-|
-|
 |
 |
 |
@@ -121,11 +100,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 6
 |      22
@@ -141,11 +115,6 @@ Baaaaaa
 |   22222222
 |   22222222
 |    22  22
-|
-|
-|
-|
-|
 |
 |
 |
@@ -169,11 +138,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 8 (top part of tail, bottom part of hands)
 |
@@ -189,11 +153,6 @@ Baaaaaa
 | 11 111111 11
 | 11 111111 11
 |     1111
-|
-|
-|
-|
-|
 |
 |
 |
@@ -217,11 +176,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 10 (bottom half of chest spike)
 |
@@ -238,11 +192,6 @@ Baaaaaa
 | 222 4444 222
 |      44
 |      55
-|
-|
-|
-|
-|
 |
 |
 |
@@ -265,11 +214,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 12 (bottom part of hair)
 |
@@ -289,11 +233,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 13 (neck)
 |
@@ -308,11 +247,6 @@ Baaaaaa
 |  11      11
 |    1 22 1
 |    1 22 1
-|
-|
-|
-|
-|
 |
 |
 |
@@ -337,11 +271,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 15
 |
@@ -360,11 +289,6 @@ Baaaaaa
 |     2222
 |      22
 |      22
-|
-|
-|
-|
-|
 |
 
 # layer 16 (red eyes)
@@ -385,11 +309,6 @@ Baaaaaa
 |      11
 |      11
 |      11
-|
-|
-|
-|
-|
 
 # layer 17
 |
@@ -407,11 +326,6 @@ Baaaaaa
 |    522225
 |     1221
 |      11
-|
-|
-|
-|
-|
 |
 |
 
@@ -433,11 +347,6 @@ Baaaaaa
 |      11
 |
 |
-|
-|
-|
-|
-|
 
 # layer 19 (top of head)
 |
@@ -457,11 +366,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 20
 |
@@ -476,11 +380,6 @@ Baaaaaa
 |
 |     2  2
 |    21  12
-|
-|
-|
-|
-|
 |
 |
 |
@@ -505,11 +404,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 22
 |
@@ -529,11 +423,6 @@ Baaaaaa
 |
 |
 |
-|
-|
-|
-|
-|
 
 # layer 23 (top of ears)
 |
@@ -548,11 +437,6 @@ Baaaaaa
 |
 |
 |     2  2
-|
-|
-|
-|
-|
 |
 |
 |
