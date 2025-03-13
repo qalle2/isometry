@@ -86,9 +86,9 @@ Bff0000
 * 6&ndash;9: currently unsupported
 
 ## Other files
-`blocks.png` contains the building blocks (small cubes); it's read programmatically:
+`blocks-small.png` contains the building blocks (small cubes); it's read programmatically:
 
-![the building blocks](blocks.png)
+![the building blocks](blocks-small.png)
 
 How the width, depth and height of a block are determined (out of date):
 

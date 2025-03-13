@@ -14,52 +14,73 @@ MARGIN_VERT = 8
 # number of colours in block files, excluding colour #0 (transparent)
 COLOUR_COUNT = 5
 
-# note regarding width1, width2:
-#     19 = approx. 21*cos(22.5 deg)
-#      8 = approx. 21*sin(22.5 deg)
-
 # key:   (fine_Z_rotation, fine_X_rotation)       from command line
 # value: (width1, width2, depth1, depth2, height) of a block
 FINE_ROTATION_TO_BLOCK_SIZE = {
-    (0, 0): (20, 0,  0, 0, 20),
-    (1, 0): (18, 8,  0, 0, 20),
-    (2, 0): (14,14,  0, 0, 20),
-    (3, 0): ( 8,18,  0, 0, 20),
-    #
-    (0, 2): (20, 0, 14, 0, 14),
-    (1, 2): (18, 8, 12, 4, 15),
-    (2, 2): (14,14,  8, 9, 17),
-    (3, 2): ( 8,18,  4,12, 15),
+    (0, 0): (8, 0, 0, 0, 8),
+    (1, 0): (7, 3, 0, 0, 8),
+    (2, 0): (6, 6, 0, 0, 8),
+    (3, 0): (3, 7, 0, 0, 8),
+    (0, 2): (8, 0, 6, 0, 6),
+    (1, 2): (7, 3, 4, 2, 6),
+    (2, 2): (6, 6, 3, 3, 6),
+    (3, 2): (3, 7, 2, 4, 6),
+    # for "blocks-large.png"
+    #(0, 0): (20, 0,  0, 0, 20),
+    #(1, 0): (18, 8,  0, 0, 20),
+    #(2, 0): (14,14,  0, 0, 20),
+    #(3, 0): ( 8,18,  0, 0, 20),
+    #(0, 2): (20, 0, 14, 0, 14),
+    #(1, 2): (18, 8, 12, 4, 15),
+    #(2, 2): (14,14,  8, 9, 17),
+    #(3, 2): ( 8,18,  4,12, 15),
 }
 
 # key:   (width1, width2, depth1, depth2, height) of a block
 # value: (column, row)                            in block file
 BLOCK_FILE_BLOCKSETS = {
-    (20, 0,  0, 0, 20): (0, 1),
-    (18, 8,  0, 0, 20): (1, 1),
-    (14,14,  0, 0, 20): (2, 1),
-    ( 8,18,  0, 0, 20): (3, 1),
-    #
-    (20, 0, 14, 0, 14): (0, 0),
-    (18, 8, 12, 4, 15): (1, 0),
-    (14,14,  8, 9, 17): (2, 0),
-    ( 8,18,  4,12, 15): (3, 0),
+    (8, 0, 0, 0, 8): (0, 1),
+    (7, 3, 0, 0, 8): (1, 1),
+    (6, 6, 0, 0, 8): (2, 1),
+    (3, 7, 0, 0, 8): (3, 1),
+    (8, 0, 6, 0, 6): (0, 0),
+    (7, 3, 4, 2, 6): (1, 0),
+    (6, 6, 3, 3, 6): (2, 0),
+    (3, 7, 2, 4, 6): (3, 0),
+    # for "blocks-large.png"
+    #(20, 0,  0, 0, 20): (0, 1),
+    #(18, 8,  0, 0, 20): (1, 1),
+    #(14,14,  0, 0, 20): (2, 1),
+    #( 8,18,  0, 0, 20): (3, 1),
+    #(20, 0, 14, 0, 14): (0, 0),
+    #(18, 8, 12, 4, 15): (1, 0),
+    #(14,14,  8, 9, 17): (2, 0),
+    #( 8,18,  4,12, 15): (3, 0),
 }
 assert set(BLOCK_FILE_BLOCKSETS) == set(FINE_ROTATION_TO_BLOCK_SIZE.values())
 
 BLOCK_FILE_COLUMN_WIDTHS = (  # must include the last column
-    (20      + 1) * COLOUR_COUNT,
-    (18 +  8 + 1) * COLOUR_COUNT,
-    (14 + 14 + 1) * COLOUR_COUNT,
-    ( 8 + 18 + 1) * COLOUR_COUNT,
+     8      * COLOUR_COUNT,
+    (7 + 3) * COLOUR_COUNT,
+    (6 + 6) * COLOUR_COUNT,
+    (3 + 7) * COLOUR_COUNT,
+    # for "blocks-large.png"
+    #(20      + 1) * COLOUR_COUNT,
+    #(18 +  8 + 1) * COLOUR_COUNT,
+    #(14 + 14 + 1) * COLOUR_COUNT,
+    #( 8 + 18 + 1) * COLOUR_COUNT,
 )
 BLOCK_FILE_ROW_HEIGHTS = (  # must include the last row
-    34 + 1,
-    20 + 1,
+    6 + 6,
+    8,
+    # for "blocks-large.png"
+    #34 + 1,
+    #20 + 1,
 )
 
 # read building blocks from here
-BLOCK_FILE = "blocks.png"
+BLOCK_FILE = "blocks-small.png"
+#BLOCK_FILE = "blocks-large.png"
 
 # --- helper functions --------------------------------------------------------
 
@@ -390,10 +411,9 @@ def main():
     )]
     blkImgX = sum(BLOCK_FILE_COLUMN_WIDTHS[:col])
     blkImgY = sum(BLOCK_FILE_ROW_HEIGHTS[:row])
-    blkImgWidth = 1 + args["blkWidth1"] + args["blkWidth2"]
-    blkImgHeight = (
-        1 + args["blkDepth1"] + args["blkDepth2"] + args["blkHeight"]
-    )
+    # note: add 1 to these if using "blocks-large.png"
+    blkImgWidth  = args["blkWidth1"] + args["blkWidth2"]
+    blkImgHeight = args["blkDepth1"] + args["blkDepth2"] + args["blkHeight"]
 
     # copy block images from block file to output image
     try:
