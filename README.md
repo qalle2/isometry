@@ -22,18 +22,19 @@ Examples with 45-degree X rotation and varying Z rotation:
 
 ![examples with 45-degree X rotation](example-xrot45.png)
 
+Examples of mirroring (none, along X axis, along Y axis, along Z axis):
+
+![examples of mirroring with the letter P](mirroring.png)
+
 ## Command line arguments
-*inputFile outputFile fineZRotation fineXRotation axesToRotate axesToMirror*
+*inputFile outputFile xRotation yRotation zRotation axesToMirror*
 * *inputFile*: file to read (describes the 3D object; see "input file" below)
 * *outputFile*: image file to write (PNG, RGB without alpha)
-* *fineZRotation*: how much to rotate the object clockwise around its vertical axis in 22.5-degree increments; integer, 0 to 2
-* *fineXRotation*: how much to rotate the object by "rolling it towards the viewer" in 22.5-degree increments; integer, 0 or 2
-* *axesToRotate*:
-  * a string consisting of the characters `X`, `Y`, `Z`; zero to three of each
-  * for each character, the object will be rotated 90 degrees counterclockwise around that axis
-  * the order of the characters does not matter
-  * optional (default is no rotation)
-  * case insensitive
+* *xRotation*, *yRotation*, *zRotation*: how much to rotate the object clockwise around each axis:
+  * unit: 22.5 degrees (1/16 of a full turn)
+  * an integer between 0 and 15
+  * for *xRotation*, only even numbers are supported
+  * for *yRotation*, only multiples of 4 are supported
 * *axesToMirror*:
   * a string consisting of the characters `X`, `Y` and `Z`; zero or one of each
   * for each character, the object will be mirrored along that axis
@@ -41,7 +42,7 @@ Examples with 45-degree X rotation and varying Z rotation:
   * optional (default is no mirroring)
   * case insensitive
 
-Note: all arguments except *axesToRotate* and *axesToMirror* are required.
+Note: all arguments except *axesToMirror* are required.
 
 ## Input file
 * Describes the 3D object to draw.
@@ -87,7 +88,3 @@ Bff0000
 `blocks-small.png` contains the building blocks (small cubes); it's read programmatically:
 
 ![the building blocks](blocks-small.png)
-
-How the width, depth and height of a block are determined (out of date):
-
-![four blocks: type 1 and 2 with zero and nonzero depth](block-dimensions.png)

@@ -91,7 +91,7 @@ def decode_int(stri, min_, max_, name):
         if not min_ <= i <= max_:
             raise ValueError
     except ValueError:
-        sys.exit(f"{name} must be an integer between {min_}-{max_}")
+        sys.exit(f"{name} must be an integer between {min_} and {max_}")
     return i
 
 def decode_colour_code(colour):
@@ -117,28 +117,39 @@ def get_lines(filename):
 def parse_args():
     # parse command line arguments; return a dict
 
-    if 5 <= len(sys.argv) <= 7:
-        (inputFile, outputFile, fineZRot, fineXRot) = sys.argv[1:5]
-        rotateAxes = sys.argv[5].upper() if len(sys.argv) >= 6 else ""
+    if 6 <= len(sys.argv) <= 7:
+        (inputFile, outputFile, xRot, yRot, zRot) = sys.argv[1:6]
         mirrorAxes = sys.argv[6].upper() if len(sys.argv) == 7 else ""
     else:
         sys.exit(
-            "Arguments: inputFile outputFile fineZRotation fineXRotation "
-            "[axesToRotate] [axesToMirror]; see README.md for details"
+            "Arguments: inputFile outputFile xRotation yRotation zRotation "
+            "[axesToMirror]; see README.md for details"
         )
 
+    xRot = decode_int(xRot, 0, 15, "X rotation")
+    yRot = decode_int(yRot, 0, 15, "Y rotation")
+    zRot = decode_int(zRot, 0, 15, "Z rotation")
+    if xRot % 2 > 0:
+        sys.exit("Only X rotations divisible by 2 are supported.")
+    if yRot % 4 > 0:
+        sys.exit("Only Y rotations divisible by 4 are supported.")
+
+    # split rotations into coarse and fine parts
+    # (note: fineYRot is always 0 and unused)
+    (coarseXRot, fineXRot) = divmod(xRot, 4)
+    (coarseYRot, fineYRot) = divmod(yRot, 4)
+    (coarseZRot, fineZRot) = divmod(zRot, 4)
+    del xRot, yRot, zRot
+
     # get block width, depth, height from fine rotations
-    fineZRot = decode_int(fineZRot, 0, 3, "fineZRotation")
-    fineXRot = decode_int(fineXRot, 0, 3, "fineXRotation")
     try:
         (blkWidth1, blkWidth2, blkDepth1, blkDepth2, blkHeight) = (
             FINE_ROTATION_TO_BLOCK_SIZE[(fineZRot, fineXRot)]
         )
     except KeyError:
+        # this error should always be caught earlier
         sys.exit("This combination of fine rotations is not supported.")
 
-    if not set(rotateAxes).issubset(set("XYZ")):
-        sys.exit("the rotateAxes argument may only contain letters X Y Z")
     if not set(mirrorAxes).issubset(set("XYZ")):
         sys.exit("the mirrorAxes argument may only contain letters X Y Z")
 
@@ -146,6 +157,9 @@ def parse_args():
         sys.exit(f"{inputFile} not found.")
     if os.path.exists(outputFile):
         sys.exit(f"{outputFile} already exists.")
+
+    coarseRots = (coarseXRot, coarseYRot, coarseZRot)
+    mirrorAxes = ("X" in mirrorAxes, "Y" in mirrorAxes, "Z" in mirrorAxes)
 
     return {
         "inputFile":  inputFile,
@@ -155,7 +169,7 @@ def parse_args():
         "blkDepth1":  blkDepth1,
         "blkDepth2":  blkDepth2,
         "blkHeight":  blkHeight,
-        "rotateAxes": rotateAxes,
+        "coarseRots": coarseRots,
         "mirrorAxes": mirrorAxes,
     }
 
@@ -202,7 +216,7 @@ def get_object_data(inputFile):
                 sys.exit("Only spaces and digits are allowed after '|'.")
 
 def x_rotate(object):
-    # rotate object 90 degrees counterclockwise around X axis;
+    # rotate object 90 degrees clockwise around X axis;
     # object: tuple of tuples of tuples of ints
 
     width  = len(object[0][0])
@@ -220,57 +234,58 @@ def x_rotate(object):
     )
 
 def y_rotate(object):
-    # rotate object 90 degrees counterclockwise around Y axis;
+    # rotate object 90 degrees clockwise around Y axis;
     # object: tuple of tuples of tuples of ints
 
     width  = len(object[0][0])
     depth  = len(object[0])
     height = len(object)
 
-    # (x, y, z) = (-z, y, x)
+    # (x, y, z) = (z, y, -x)
     return tuple(
         tuple(
             tuple(
                 object[z][y][x]
-                for z in range(height - 1, -1, -1)
+                for z in range(height)
             ) for y in range(depth)
-        ) for x in range(width)
+        ) for x in range(width - 1, -1, -1)
     )
 
 def z_rotate(object):
-    # rotate object 90 degrees counterclockwise around Z axis;
+    # rotate object 90 degrees clockwise around Z axis;
     # object: tuple of tuples of tuples of ints
 
     width  = len(object[0][0])
     depth  = len(object[0])
     height = len(object)
 
-    # (x, y, z) = (y, -x, z)
     return tuple(
         tuple(
             tuple(
                 object[z][y][x]
-                for y in range(depth)
-            ) for x in range(width - 1, -1, -1)
+                for y in range(depth - 1, -1, -1)
+            ) for x in range(width)
         ) for z in range(height)
     )
 
-def transform_object(object, rotateAxes, mirrorAxes):
+def transform_object(object, rotations, mirrorAxes):
     # rotate and mirror object if needed;
+    # rotations:  coarse (X, Y, Z) rotations (0-3 each);
+    # mirrorAxes: mirror along (X, Y, Z)? (booleans)
     # object: tuple of tuples of tuples of ints
 
-    for i in range(rotateAxes.count("X")):
+    for i in range(rotations[0]):
         object = x_rotate(object)
-    for i in range(rotateAxes.count("Y")):
+    for i in range(rotations[1]):
         object = y_rotate(object)
-    for i in range(rotateAxes.count("Z")):
+    for i in range(rotations[2]):
         object = z_rotate(object)
 
-    if "X" in mirrorAxes:
+    if mirrorAxes[0]:
         object = tuple(tuple(j[::-1] for j in i) for i in object)
-    if "Y" in mirrorAxes:
+    if mirrorAxes[1]:
         object = tuple(i[::-1] for i in object)
-    if "Z" in mirrorAxes:
+    if mirrorAxes[2]:
         object = object[::-1]
 
     return object
@@ -389,7 +404,7 @@ def main():
     )
 
     # rotate and mirror object if needed
-    objData = transform_object(objData, args["rotateAxes"], args["mirrorAxes"])
+    objData = transform_object(objData, args["coarseRots"], args["mirrorAxes"])
     objWidth  = len(objData[0][0])
     objDepth  = len(objData[0])
     objHeight = len(objData)
