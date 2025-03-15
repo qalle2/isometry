@@ -67,16 +67,71 @@ def get_object_data(inputFile):
                 sys.exit("Only spaces and digits are allowed after '|'.")
 
 def cubes_to_cuboids(cubes):
-    # cubes:    {(x, y, z): colourIndex, ...}
-    # generate: {(x, y, z, width, depth, height, colourIndex), ...}
+    # combine unit cubes into larger rectangular cuboids
+    # cubes:    {(x, y, z): colourIndex, ...}; modified in-place
+    # generate: (x, y, z, width, depth, height, colourIndex) per call
 
-    # TODO: this should actually optimise the data
+    totalWidth  = max(c[0] for c in cubes) + 1
+    totalDepth  = max(c[1] for c in cubes) + 1
+    totalHeight = max(c[2] for c in cubes) + 1
 
-    cubesLeft = cubes.copy()
-    for (x, y, z) in cubes:
-        colour = cubes[(x, y, z)]
-        yield (x, y, z, 1, 1, 1, colour)
-        cubesLeft.pop((x, y, z))
+    # for each starting point (non-transparent cube remaining)...
+    for z in range(totalHeight):
+        for y in range(totalDepth):
+            for x in range(totalWidth):
+                thisColour = cubes.get((x, y, z), 0)
+                if thisColour != 0:
+                    # for each cuboid size...
+                    largestVolume = 0
+                    for h in range(1, totalHeight - z + 1):
+                        for d in range(1, totalDepth - y + 1):
+                            for w in range(1, totalWidth - x + 1):
+                                # try all remaining cubes in this cuboid; if
+                                # they're the same colour than the starting
+                                # cube and its volume is the highest so far,
+                                # remember the dimensions
+                                allSameColours = True
+                                for z2 in range(z, z + h):
+                                    for y2 in range(y, y + d):
+                                        for x2 in range(x, x + w):
+                                            if (
+                                                cubes.get((x2, y2, z2), 0)
+                                                != thisColour
+                                            ):
+                                                allSameColours = False
+                                                break
+                                        if not allSameColours:
+                                            break
+                                    if not allSameColours:
+                                        break
+                                if allSameColours:
+                                    volume = h * d * w
+                                    if volume > largestVolume:
+                                        largestVolume    = volume
+                                        bestCuboidWidth  = w
+                                        bestCuboidDepth  = d
+                                        bestCuboidHeight = h
+
+                    # output the largest one-colour cuboid that was found from
+                    # this starting point
+                    yield (
+                        x + (bestCuboidWidth - 1)  / 2,
+                        y + (bestCuboidDepth - 1)  / 2,
+                        z + (bestCuboidHeight - 1) / 2,
+                        bestCuboidWidth,
+                        bestCuboidDepth,
+                        bestCuboidHeight,
+                        thisColour
+                    )
+
+                    # free the cubes that were in the cuboid
+                    for z2 in range(z, z + bestCuboidHeight):
+                        for y2 in range(y, y + bestCuboidDepth):
+                            for x2 in range(x, x + bestCuboidWidth):
+                                cubes.pop((x2, y2, z2))
+
+    # TODO: algorithm idea: always find the largest cuboid in the entire
+    # object, not just in current starting point?
 
 def print_colour_definitions(colours):
     # colours: set of colour indexes in object data
@@ -98,23 +153,21 @@ def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
     cuboids.sort(key=lambda c: c[1])
     cuboids.sort(key=lambda c: c[2])
 
-    # print cube data
-    prevZ = -1
+    # center everything
     xOffset = -(totalWidth  - 1) / 2
     yOffset = -(totalDepth  - 1) / 2
     zOffset = -(totalHeight - 1) / 2
+    print(f"translate([{xOffset},{yOffset},{zOffset}]) {{")
+
     for (x, y, z, w, d, h, colourIndex) in cuboids:
-        # make coordinates centered
         colourName = BLOCK_COLOURS[colourIndex-1][3]
         print(
-            f"color({colourName}) "
-            f"translate([{x+xOffset:5},{y+yOffset:5},{z+zOffset:5}]) "
+            f"{'':4}color({colourName}) "
+            f"translate([{x:4},{y:4},{z:4}]) "
             f"cube([{w:2},{d:2},{h:2}], center=true);"
         )
-        if z != prevZ:
-            if prevZ != -1:
-                print()
-            prevZ = z
+
+    print("}")  # end translate
 
 def main():
     if len(sys.argv) != 2:
