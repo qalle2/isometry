@@ -1,6 +1,6 @@
 # Convert a voxel file into an OpenSCAD file.
 
-import os, sys
+import os, random, sys, time
 
 # colours of blocks in "blocks-small.png", excluding transparent;
 # format: (red, green, blue, name)
@@ -11,6 +11,13 @@ BLOCK_COLOURS = [
     (0xff, 0xc0, 0x00, "YEL"),
     (0xff, 0xff, 0xff, "WHT"),
 ]
+
+# make all nontransparent cubes the same colour?
+# (will reduce the number of cuboids needed)
+COMBINE_CUBE_COLOURS = 0  # 0=no, 1=yes
+
+# assign each cuboid a random colour instead of the original colour?
+RANDOM_CUBOID_COLOURS = 0  # 0=no, 1=yes
 
 def get_lines(filename):
     # generate non-empty lines without leading or trailing whitespace
@@ -66,72 +73,100 @@ def get_object_data(inputFile):
             except ValueError:
                 sys.exit("Only spaces and digits are allowed after '|'.")
 
-def cubes_to_cuboids(cubes):
-    # combine unit cubes into larger rectangular cuboids
-    # cubes:    {(x, y, z): colourIndex, ...}; modified in-place
-    # generate: (x, y, z, width, depth, height, colourIndex) per call
+def get_largest_solid_cuboid_here(x, y, z, cubes):
+    # find the largest unassigned non-transparent one-colour cuboid starting
+    # from the specified location
+    # cubes:  {(x, y, z): colourIndex, ...}
+    # return: (width, depth, height) of cuboid
 
     totalWidth  = max(c[0] for c in cubes) + 1
     totalDepth  = max(c[1] for c in cubes) + 1
     totalHeight = max(c[2] for c in cubes) + 1
 
-    # for each starting point (non-transparent cube remaining)...
+    largestVolume = 0
+    bestWidth     = 0
+    bestDepth     = 0
+    bestHeight    = 0
+
+    for height in range(1, totalHeight - z + 1):
+        for depth in range(1, totalDepth - y + 1):
+            for width in range(1, totalWidth - x + 1):
+                isSolid = True
+                for z2 in range(z, z + height):
+                    for y2 in range(y, y + depth):
+                        for x2 in range(x, x + width):
+                            if cubes.get((x2, y2, z2), 0) != cubes[(x, y, z)]:
+                                isSolid = False
+                                break
+                        if not isSolid:
+                            break
+                    if not isSolid:
+                        break
+                if isSolid:
+                    volume = width * depth * height
+                    if volume > largestVolume:
+                        largestVolume = volume
+                        bestWidth  = width
+                        bestDepth  = depth
+                        bestHeight = height
+
+    return (bestWidth, bestDepth, bestHeight)
+
+def get_largest_solid_cuboid(cubes):
+    # find the largest unassigned non-transparent one-colour cuboid anywhere
+    # cubes:  {(x, y, z): colourIndex, ...}
+    # return: (x, y, z)
+
+    totalWidth  = max(c[0] for c in cubes) + 1
+    totalDepth  = max(c[1] for c in cubes) + 1
+    totalHeight = max(c[2] for c in cubes) + 1
+    largestVolume = 0
+
     for z in range(totalHeight):
         for y in range(totalDepth):
             for x in range(totalWidth):
                 thisColour = cubes.get((x, y, z), 0)
                 if thisColour != 0:
-                    # for each cuboid size...
-                    largestVolume = 0
-                    for h in range(1, totalHeight - z + 1):
-                        for d in range(1, totalDepth - y + 1):
-                            for w in range(1, totalWidth - x + 1):
-                                # try all remaining cubes in this cuboid; if
-                                # they're the same colour than the starting
-                                # cube and its volume is the highest so far,
-                                # remember the dimensions
-                                allSameColours = True
-                                for z2 in range(z, z + h):
-                                    for y2 in range(y, y + d):
-                                        for x2 in range(x, x + w):
-                                            if (
-                                                cubes.get((x2, y2, z2), 0)
-                                                != thisColour
-                                            ):
-                                                allSameColours = False
-                                                break
-                                        if not allSameColours:
-                                            break
-                                    if not allSameColours:
-                                        break
-                                if allSameColours:
-                                    volume = h * d * w
-                                    if volume > largestVolume:
-                                        largestVolume    = volume
-                                        bestCuboidWidth  = w
-                                        bestCuboidDepth  = d
-                                        bestCuboidHeight = h
-
-                    # output the largest one-colour cuboid that was found from
-                    # this starting point
-                    yield (
-                        x + (bestCuboidWidth - 1)  / 2,
-                        y + (bestCuboidDepth - 1)  / 2,
-                        z + (bestCuboidHeight - 1) / 2,
-                        bestCuboidWidth,
-                        bestCuboidDepth,
-                        bestCuboidHeight,
-                        thisColour
+                    (width, depth, height) = get_largest_solid_cuboid_here(
+                        x, y, z, cubes
                     )
+                    volume = width * depth * height
+                    if volume > largestVolume:
+                        largestVolume = volume
+                        bestX         = x
+                        bestY         = y
+                        bestZ         = z
 
-                    # free the cubes that were in the cuboid
-                    for z2 in range(z, z + bestCuboidHeight):
-                        for y2 in range(y, y + bestCuboidDepth):
-                            for x2 in range(x, x + bestCuboidWidth):
-                                cubes.pop((x2, y2, z2))
+    return (bestX, bestY, bestZ)
 
-    # TODO: algorithm idea: always find the largest cuboid in the entire
-    # object, not just in current starting point?
+def cubes_to_cuboids(cubes):
+    # combine unit cubes into larger rectangular cuboids
+    # cubes:    {(x, y, z): colourIndex, ...}; modified in-place
+    # generate: (x, y, z, width, depth, height, colourIndex) per call
+
+    # total time: 6.1 s
+
+    while len(cubes) > 0:
+        # find the largest unassigned non-transparent one-colour cuboid
+        (x, y, z) = get_largest_solid_cuboid(cubes)
+        (width, depth, height) = get_largest_solid_cuboid_here(x, y, z, cubes)
+
+        # output the cuboid
+        yield (
+            x + (width  - 1) / 2,
+            y + (depth  - 1) / 2,
+            z + (height - 1) / 2,
+            width,
+            depth,
+            height,
+            cubes[(x, y, z)]  # colour index
+        )
+
+        # free the cubes that were in the cuboid
+        for z2 in range(z, z + height):
+            for y2 in range(y, y + depth):
+                for x2 in range(x, x + width):
+                    cubes.pop((x2, y2, z2))
 
 def print_colour_definitions(colours):
     # colours: set of colour indexes in object data
@@ -160,7 +195,15 @@ def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
     print(f"translate([{xOffset},{yOffset},{zOffset}]) {{")
 
     for (x, y, z, w, d, h, colourIndex) in cuboids:
-        colourName = BLOCK_COLOURS[colourIndex-1][3]
+        if RANDOM_CUBOID_COLOURS:
+            colourName = "[{},{},{}]".format(
+                random.randrange(0, 100) / 100,
+                random.randrange(0, 100) / 100,
+                random.randrange(0, 100) / 100
+            )
+        else:
+            colourName = BLOCK_COLOURS[colourIndex-1][3]
+        #
         print(
             f"{'':4}color({colourName}) "
             f"translate([{x:4},{y:4},{z:4}]) "
@@ -170,6 +213,8 @@ def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
     print("}")  # end translate
 
 def main():
+    startTime = time.time()
+
     if len(sys.argv) != 2:
         sys.exit(
             "Convert a voxel file into an OpenSCAD file. Argument: input "
@@ -194,6 +239,9 @@ def main():
 
     print(f"// {os.path.basename(inputFile)}, {width=}, {depth=}, {height=}")
 
+    if COMBINE_CUBE_COLOURS:
+        objData = [tuple(1 if c > 0 else 0 for c in row) for row in objData]
+
     # wrap each layer in its own tuple to get a tuple of tuples of tuples
     objData = tuple(
         tuple(objData[i:i+depth]) for i in range(0, height * depth, depth)
@@ -207,16 +255,20 @@ def main():
                 if colour > 0:
                     usedCubes[(x, y, z)] = colour
     del objData
-
-    print(f"// non-transparent unit cubes: {len(usedCubes)}")
+    print("// volume:", len(usedCubes), "unit cubes")
 
     cuboids = list(cubes_to_cuboids(usedCubes))
-    print(f"// cuboids: {len(cuboids)}")
+    maxCuboidVol = max(c[3] * c[4] * c[5] for c in cuboids)
+    print(f"// cuboids:", len(cuboids))
+    print(f"// max cuboid volume:", maxCuboidVol, "unit cubes")
     print()
 
-    print("// colours")
-    print_colour_definitions(set(c[6] for c in cuboids))
-    print()
+    if not RANDOM_CUBOID_COLOURS:
+        print("// colours")
+        print_colour_definitions(set(c[6] for c in cuboids))
+        print()
     print_cube_data(cuboids, width, depth, height)
+    print()
+    print("// time:", format(time.time() - startTime, ".1f"), "s")
 
 main()
