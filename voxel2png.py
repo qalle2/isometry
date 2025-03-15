@@ -1,5 +1,4 @@
-# Draw an isometric image consisting of building blocks (small cubes).
-# See README.md.
+# Render a voxel file as an image file.
 
 import os, sys
 try:
@@ -122,8 +121,9 @@ def parse_args():
         mirrorAxes = sys.argv[6].upper() if len(sys.argv) == 7 else ""
     else:
         sys.exit(
-            "Arguments: inputFile outputFile xRotation yRotation zRotation "
-            "[axesToMirror]; see README.md for details"
+            "Render a voxel file as a PNG file. Arguments: inputFile "
+            "outputFile xRotation yRotation zRotation [axesToMirror]; see "
+            "README.md for details."
         )
 
     xRot = decode_int(xRot, 0, 15, "X rotation")

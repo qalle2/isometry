@@ -1,11 +1,11 @@
 # isometry
-Draw an isometric image consisting of building blocks (small cubes) according to instructions in a text file.
-Requires the [Pillow](https://python-pillow.org) module.
+Programs that read a 3D image consisting of small cubes from a "voxel file" (see "voxel files" below) and output a rendered PNG image or an OpenSCAD file.
 
 Table of contents:
 * [3D coordinates](#3d-coordinates)
-* [Command line arguments](#command-line-arguments)
-* [Input file](#input-file)
+* [voxel2png.py](#voxel2pngpy)
+* [voxel2scad.py](#voxel2scadpy)
+* [Voxel files](#voxel-files)
 * [Colour numbers](#colour-numbers)
 * [Other files](#other-files)
 
@@ -14,21 +14,23 @@ Table of contents:
 * depth: Y+ = towards viewer and possibly left
 * height: Z+ = up and possibly towards viewer
 
-Examples without X rotation and varying Z rotation:
+Examples without X rotation and increasing Z rotation from `voxel2png.py`:
 
 ![examples without X rotation](example-xrot0.png)
 
-Examples with 45-degree X rotation and varying Z rotation:
+Examples with 45-degree X rotation and varying Z rotation from `voxel2png.py`:
 
 ![examples with 45-degree X rotation](example-xrot45.png)
 
-Examples of mirroring (none, along X axis, along Y axis, along Z axis):
+Examples of mirroring (none, along X axis, along Y axis, along Z axis) from `voxel2png.py`:
 
 ![examples of mirroring with the letter P](mirroring.png)
 
-## Command line arguments
-*inputFile outputFile xRotation yRotation zRotation axesToMirror*
-* *inputFile*: file to read (describes the 3D object; see "input file" below)
+## voxel2png.py
+Renders a voxel file as a PNG image file without perspective. Requires the [Pillow](https://python-pillow.org) module.
+
+Command line arguments: *inputFile outputFile xRotation yRotation zRotation axesToMirror*
+* *inputFile*: voxel file to read (see "voxel files" below)
 * *outputFile*: image file to write (PNG, RGB without alpha)
 * *xRotation*, *yRotation*, *zRotation*: how much to rotate the object clockwise around each axis:
   * unit: 22.5 degrees (1/16 of a full turn)
@@ -44,9 +46,18 @@ Examples of mirroring (none, along X axis, along Y axis, along Z axis):
 
 Note: all arguments except *axesToMirror* are required.
 
-## Input file
-* Describes the 3D object to draw.
-* Encoding: ASCII.
+## voxel2scad.py
+Converts a voxel file into an OpenSCAD file (`.scad`). Does not require Pillow.
+
+Command line argument: voxel file to read (see "voxel files" below)
+
+Prints the output data to stdout (screen).
+
+## Voxel files
+* Describes a 3D object using small cubes.
+* This format was developed by me; it's not used anywhere else as far as I know.
+* Encoding: UTF-8.
+* File extension: `.txt`
 * Case insensitive.
 * On each line, leading whitespace is ignored.
 * Lines that are ignored:
@@ -75,7 +86,10 @@ Bff0000
 |1
 ```
 
+There are more examples under `test-in/`
+
 ## Colour numbers
+Colour indexes used in voxel files:
 * 0: none (transparent)
 * 1: black
 * 2: blue
