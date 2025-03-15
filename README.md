@@ -18,7 +18,7 @@ Examples without X rotation and increasing Z rotation from `voxel2png.py`:
 
 ![examples without X rotation](example-xrot0.png)
 
-Examples with 45-degree X rotation and varying Z rotation from `voxel2png.py`:
+Examples with 45-degree X rotation and increasing Z rotation from `voxel2png.py`:
 
 ![examples with 45-degree X rotation](example-xrot45.png)
 
@@ -68,7 +68,7 @@ Prints the output data to stdout (screen).
   * Object width in blocks: `W` immediately followed by an integer 1&ndash;256.
   * Object depth in blocks: `D` immediately followed by an integer 1&ndash;256.
   * Object height in blocks: `H` immediately followed by an integer 1&ndash;256.
-  * Background colour: `B` immediately followed by 6 hexadecimal digits (`RRGGBB`, `000000`&ndash;`ffffff`).
+  * Background colour: `B` immediately followed by 6 hexadecimal digits (`RRGGBB`, `000000`&ndash;`ffffff`). Not used by `voxel2scad.py`.
 * "Block" lines:
   * Each line describes a slice of *objectWidth*&times;1&times;1 blocks of the object from left to right.
   * Syntax of each line: a pipe (`|`) followed by up to *objectWidth* spaces or digits, plus optionally newline.

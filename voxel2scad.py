@@ -66,6 +66,45 @@ def get_object_data(inputFile):
             except ValueError:
                 sys.exit("Only spaces and digits are allowed after '|'.")
 
+def print_colour_definitions(colours):
+    # colours: set of colour indexes in object data
+    for (ind, (red, green, blue, name)) in enumerate(BLOCK_COLOURS):
+        if ind + 1 in colours:
+            print("{} = [{:<4}, {:<4}, {:<4}];  // was index {}".format(
+                name,
+                round(red   / 255, 2),
+                round(green / 255, 2),
+                round(blue  / 255, 2),
+                ind + 1
+            ))
+
+def print_cube_data(cubes, width, depth, height):
+    # cubes: {(x, y, z): colourIndex, ...}
+
+    # order: primary = Z, secondary = Y, tertiary = X
+    cubeOrder = list(cubes)
+    cubeOrder.sort(key=lambda c: c[0])
+    cubeOrder.sort(key=lambda c: c[1])
+    cubeOrder.sort(key=lambda c: c[2])
+
+    # print cube data
+    xOffset = -(width  - 1) / 2
+    yOffset = -(depth  - 1) / 2
+    zOffset = -(height - 1) / 2
+    prevZ = -1
+    for (x, y, z) in cubeOrder:
+        colourIndex = cubes[(x, y, z)]
+        colourName = BLOCK_COLOURS[colourIndex-1][3]
+        print(
+            f"color({colourName}) "
+            f"translate([{x+xOffset:5}, {y+yOffset:5}, {z+zOffset:5}]) "
+            f"cube(center=true);"
+        )
+        if z != prevZ:
+            if prevZ != -1:
+                print()
+            prevZ = z
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(
@@ -89,6 +128,8 @@ def main():
             f"Can't have colour numbers greater than {len(BLOCK_COLOURS)}."
         )
 
+    print(f"// {os.path.basename(inputFile)}, {width=}, {depth=}, {height=}")
+
     # wrap each layer in its own tuple to get a tuple of tuples of tuples
     objData = tuple(
         tuple(objData[i:i+depth]) for i in range(0, height * depth, depth)
@@ -96,56 +137,21 @@ def main():
 
     # convert object data into a dict
     usedCubes = dict()  # {(x, y, z): colour, ...}
-    for z in range(height):
-        for y in range(depth):
-            for x in range(width):
-                if x < len(objData[z][y]):
-                    colour = objData[z][y][x]
-                    if colour > 0:
-                        usedCubes[(x, y, z)] = colour
+    for (z, layer) in enumerate(objData):
+        for (y, row) in enumerate(layer):
+            for (x, colour) in enumerate(row):
+                if colour > 0:
+                    usedCubes[(x, y, z)] = colour
     del objData
+
+    print(f"// non-transparent unit cubes: {len(usedCubes)}")
+    print()
 
     # TODO: optimise object data by combining cubes into larger cuboids
 
-    print(f"// {os.path.basename(inputFile)}, {width=}, {depth=}, {height=}")
-    print("// Non-transparent blocks:", len(usedCubes))
-
-    # define colours
-    distinctColours = set(usedCubes.values())
-    for (ind, (red, green, blue, name)) in enumerate(BLOCK_COLOURS):
-        if ind + 1 in distinctColours:
-            print("{} = [{:<4}, {:<4}, {:<4}];  // was index {}".format(
-                name,
-                round(red   / 255, 2),
-                round(green / 255, 2),
-                round(blue  / 255, 2),
-                ind + 1
-            ))
+    print("// colours")
+    print_colour_definitions(set(usedCubes.values()))
     print()
-
-    # cube order: primary = Z, secondary = Y, then X
-    cubeOrder = list(usedCubes)
-    cubeOrder.sort(key=lambda c: c[0])
-    cubeOrder.sort(key=lambda c: c[1])
-    cubeOrder.sort(key=lambda c: c[2])
-
-    # print cube data
-    xOffset = -(width  - 1) / 2
-    yOffset = -(depth  - 1) / 2
-    zOffset = -(height - 1) / 2
-    prevZ = -1
-    for (x, y, z) in cubeOrder:
-        colourIndex = usedCubes[(x, y, z)]
-        colourName = BLOCK_COLOURS[colourIndex-1][3]
-        print(
-            "color({}) "
-            "translate([{:2}, {:2}, {:2}]) "
-            "cube(center=true);"
-            .format(colourName, x + xOffset, y + yOffset, z + zOffset)
-        )
-        if z != prevZ:
-            if prevZ != -1:
-                print()
-            prevZ = z
+    print_cube_data(usedCubes, width, depth, height)
 
 main()
