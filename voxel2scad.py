@@ -66,11 +66,23 @@ def get_object_data(inputFile):
             except ValueError:
                 sys.exit("Only spaces and digits are allowed after '|'.")
 
+def cubes_to_cuboids(cubes):
+    # cubes:    {(x, y, z): colourIndex, ...}
+    # generate: {(x, y, z, width, depth, height, colourIndex), ...}
+
+    # TODO: this should actually optimise the data
+
+    cubesLeft = cubes.copy()
+    for (x, y, z) in cubes:
+        colour = cubes[(x, y, z)]
+        yield (x, y, z, 1, 1, 1, colour)
+        cubesLeft.pop((x, y, z))
+
 def print_colour_definitions(colours):
     # colours: set of colour indexes in object data
     for (ind, (red, green, blue, name)) in enumerate(BLOCK_COLOURS):
         if ind + 1 in colours:
-            print("{} = [{:<4}, {:<4}, {:<4}];  // was index {}".format(
+            print("{} = [{:<4},{:<4},{:<4}];  // was index {}".format(
                 name,
                 round(red   / 255, 2),
                 round(green / 255, 2),
@@ -78,27 +90,26 @@ def print_colour_definitions(colours):
                 ind + 1
             ))
 
-def print_cube_data(cubes, width, depth, height):
-    # cubes: {(x, y, z): colourIndex, ...}
+def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
+    # cuboids: [(x, y, z, width, depth, height, colourIndex), ...]
 
     # order: primary = Z, secondary = Y, tertiary = X
-    cubeOrder = list(cubes)
-    cubeOrder.sort(key=lambda c: c[0])
-    cubeOrder.sort(key=lambda c: c[1])
-    cubeOrder.sort(key=lambda c: c[2])
+    cuboids.sort(key=lambda c: c[0])
+    cuboids.sort(key=lambda c: c[1])
+    cuboids.sort(key=lambda c: c[2])
 
     # print cube data
-    xOffset = -(width  - 1) / 2
-    yOffset = -(depth  - 1) / 2
-    zOffset = -(height - 1) / 2
     prevZ = -1
-    for (x, y, z) in cubeOrder:
-        colourIndex = cubes[(x, y, z)]
+    xOffset = -(totalWidth  - 1) / 2
+    yOffset = -(totalDepth  - 1) / 2
+    zOffset = -(totalHeight - 1) / 2
+    for (x, y, z, w, d, h, colourIndex) in cuboids:
+        # make coordinates centered
         colourName = BLOCK_COLOURS[colourIndex-1][3]
         print(
             f"color({colourName}) "
-            f"translate([{x+xOffset:5}, {y+yOffset:5}, {z+zOffset:5}]) "
-            f"cube(center=true);"
+            f"translate([{x+xOffset:5},{y+yOffset:5},{z+zOffset:5}]) "
+            f"cube([{w:2},{d:2},{h:2}], center=true);"
         )
         if z != prevZ:
             if prevZ != -1:
@@ -145,13 +156,14 @@ def main():
     del objData
 
     print(f"// non-transparent unit cubes: {len(usedCubes)}")
-    print()
 
-    # TODO: optimise object data by combining cubes into larger cuboids
+    cuboids = list(cubes_to_cuboids(usedCubes))
+    print(f"// cuboids: {len(cuboids)}")
+    print()
 
     print("// colours")
-    print_colour_definitions(set(usedCubes.values()))
+    print_colour_definitions(set(c[6] for c in cuboids))
     print()
-    print_cube_data(usedCubes, width, depth, height)
+    print_cube_data(cuboids, width, depth, height)
 
 main()
