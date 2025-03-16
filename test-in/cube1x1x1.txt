@@ -1,4 +1,4 @@
-# a single block
+# a single cube
 
 W1
 D1
