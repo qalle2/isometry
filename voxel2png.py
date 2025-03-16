@@ -11,7 +11,7 @@ MARGIN_HORZ = 8
 MARGIN_VERT = 8
 
 # number of colours in block files, excluding colour #0 (transparent)
-COLOUR_COUNT = 5
+COLOUR_COUNT = 9
 
 # key:   (fine_Z_rotation, fine_X_rotation)       from command line
 # value: (width1, width2, depth1, depth2, height) of a block

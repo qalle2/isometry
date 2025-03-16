@@ -92,11 +92,14 @@ There are more examples under `test-in/`
 Colour indexes used in voxel files:
 * 0: none (transparent)
 * 1: black
-* 2: blue
-* 3: red
+* 2: red
+* 3: orange
 * 4: yellow
-* 5: white
-* 6&ndash;9: currently unsupported
+* 5: green
+* 6: cyan
+* 7: blue
+* 8: magenta
+* 9: white
 
 ## Other files
 `blocks-small.png` contains the building blocks (small cubes); it's read programmatically:

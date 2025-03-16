@@ -30,8 +30,10 @@ python3 voxel2png.py test-in/cubechecker.txt test-out/cube-checkered-r203.png 2 
 echo
 
 echo "== These should cause four distinct errors =="
+echo "x" > test-out/already-exists
 python3 voxel2png.py
-python3 voxel2png.py test-in/axes.txt    test-out/axes-1a.png 9 9
-python3 voxel2png.py test-in/nonexistent test-out/axes-1a.png 0 0
-python3 voxel2png.py test-in/axes.txt    test-out/axes-1a.png 0 0
+python3 voxel2png.py test-in/axes.txt    test-out/out1.png       9 9 9
+python3 voxel2png.py test-in/nonexistent test-out/out2.png       0 0 0
+python3 voxel2png.py test-in/axes.txt    test-out/already-exists 0 0 0
+rm test-out/already-exists
 echo

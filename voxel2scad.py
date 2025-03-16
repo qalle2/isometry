@@ -5,11 +5,15 @@ import os, random, sys, time
 # colours of blocks in "blocks-small.png", excluding transparent;
 # format: (red, green, blue, name)
 BLOCK_COLOURS = [
-    (0x55, 0x55, 0x55, "BLK"),
-    (0x00, 0x40, 0xff, "BLU"),
-    (0xff, 0x00, 0x55, "RED"),
-    (0xff, 0xc0, 0x00, "YEL"),
-    (0xff, 0xff, 0xff, "WHT"),
+    ( 85,  85,  85, "BLK"),
+    (255,   0,   0, "RED"),
+    (255, 128,   0, "ORA"),
+    (255, 255,   0, "YEL"),
+    (  0, 255,   0, "GRN"),
+    (  0, 255, 255, "CYA"),
+    (  0,   0, 255, "BLU"),
+    (255,   0, 255, "MAG"),
+    (255, 255, 255, "WHI"),
 ]
 
 # make all nontransparent cubes the same colour?
@@ -77,9 +81,9 @@ def get_largest_solid_cuboid_here(x, y, z, cubes, volumeLimit):
     # find the largest unassigned non-transparent one-colour cuboid starting
     # from the specified location
     # cubes:       {(x, y, z): colourIndex, ...}
-    # return:      (width, depth, height) of cuboid
     # volumeLimit: don't bother searching for cuboids larger than this (speed
     #              optimisation; 0=no limit)
+    # return:      (width, depth, height) of cuboid
 
     totalWidth  = max(c[0] for c in cubes) + 1
     totalDepth  = max(c[1] for c in cubes) + 1
