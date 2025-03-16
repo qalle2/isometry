@@ -73,11 +73,13 @@ def get_object_data(inputFile):
             except ValueError:
                 sys.exit("Only spaces and digits are allowed after '|'.")
 
-def get_largest_solid_cuboid_here(x, y, z, cubes):
+def get_largest_solid_cuboid_here(x, y, z, cubes, volumeLimit):
     # find the largest unassigned non-transparent one-colour cuboid starting
     # from the specified location
-    # cubes:  {(x, y, z): colourIndex, ...}
-    # return: (width, depth, height) of cuboid
+    # cubes:       {(x, y, z): colourIndex, ...}
+    # return:      (width, depth, height) of cuboid
+    # volumeLimit: don't bother searching for cuboids larger than this (speed
+    #              optimisation; 0=no limit)
 
     totalWidth  = max(c[0] for c in cubes) + 1
     totalDepth  = max(c[1] for c in cubes) + 1
@@ -91,31 +93,37 @@ def get_largest_solid_cuboid_here(x, y, z, cubes):
     for height in range(1, totalHeight - z + 1):
         for depth in range(1, totalDepth - y + 1):
             for width in range(1, totalWidth - x + 1):
-                isSolid = True
-                for z2 in range(z, z + height):
-                    for y2 in range(y, y + depth):
-                        for x2 in range(x, x + width):
-                            if cubes.get((x2, y2, z2), 0) != cubes[(x, y, z)]:
-                                isSolid = False
+                if volumeLimit == 0 or height * depth * width <= volumeLimit:
+                    isSolid = True
+                    for z2 in range(z, z + height):
+                        for y2 in range(y, y + depth):
+                            for x2 in range(x, x + width):
+                                if (
+                                    cubes.get((x2, y2, z2), 0)
+                                    != cubes[(x, y, z)]
+                                ):
+                                    isSolid = False
+                                    break
+                            if not isSolid:
                                 break
                         if not isSolid:
                             break
-                    if not isSolid:
-                        break
-                if isSolid:
-                    volume = width * depth * height
-                    if volume > largestVolume:
-                        largestVolume = volume
-                        bestWidth  = width
-                        bestDepth  = depth
-                        bestHeight = height
+                    if isSolid:
+                        volume = width * depth * height
+                        if volume > largestVolume:
+                            largestVolume = volume
+                            bestWidth  = width
+                            bestDepth  = depth
+                            bestHeight = height
 
     return (bestWidth, bestDepth, bestHeight)
 
-def get_largest_solid_cuboid(cubes):
+def get_largest_solid_cuboid(cubes, volumeLimit):
     # find the largest unassigned non-transparent one-colour cuboid anywhere
-    # cubes:  {(x, y, z): colourIndex, ...}
-    # return: (x, y, z)
+    # cubes:       {(x, y, z): colourIndex, ...}
+    # volumeLimit: don't bother searching for cuboids larger than this (speed
+    #              optimisation; 0=no limit)
+    # return:      (x, y, z)
 
     totalWidth  = max(c[0] for c in cubes) + 1
     totalDepth  = max(c[1] for c in cubes) + 1
@@ -128,7 +136,7 @@ def get_largest_solid_cuboid(cubes):
                 thisColour = cubes.get((x, y, z), 0)
                 if thisColour != 0:
                     (width, depth, height) = get_largest_solid_cuboid_here(
-                        x, y, z, cubes
+                        x, y, z, cubes, volumeLimit
                     )
                     volume = width * depth * height
                     if volume > largestVolume:
@@ -144,12 +152,17 @@ def cubes_to_cuboids(cubes):
     # cubes:    {(x, y, z): colourIndex, ...}; modified in-place
     # generate: (x, y, z, width, depth, height, colourIndex) per call
 
-    # total time: 6.1 s
+    # don't bother searching for cuboids larger than this (speed optimisation;
+    # 0=no limit)
+    volumeLimit = 0
 
     while len(cubes) > 0:
         # find the largest unassigned non-transparent one-colour cuboid
-        (x, y, z) = get_largest_solid_cuboid(cubes)
-        (width, depth, height) = get_largest_solid_cuboid_here(x, y, z, cubes)
+        (x, y, z) = get_largest_solid_cuboid(cubes, volumeLimit)
+        (width, depth, height) = get_largest_solid_cuboid_here(
+            x, y, z, cubes, volumeLimit
+        )
+        volumeLimit = width * depth * height
 
         # output the cuboid
         yield (
@@ -213,8 +226,6 @@ def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
     print("}")  # end translate
 
 def main():
-    startTime = time.time()
-
     if len(sys.argv) != 2:
         sys.exit(
             "Convert a voxel file into an OpenSCAD file. Argument: input "
@@ -237,8 +248,6 @@ def main():
             f"Can't have colour numbers greater than {len(BLOCK_COLOURS)}."
         )
 
-    print(f"// {os.path.basename(inputFile)}, {width=}, {depth=}, {height=}")
-
     if COMBINE_CUBE_COLOURS:
         objData = [tuple(1 if c > 0 else 0 for c in row) for row in objData]
 
@@ -255,12 +264,17 @@ def main():
                 if colour > 0:
                     usedCubes[(x, y, z)] = colour
     del objData
-    print("// volume:", len(usedCubes), "unit cubes")
+    print(
+        f"// read {os.path.basename(inputFile)}: {width=}, {depth=}, "
+        f"{height=}, cubes={len(usedCubes)}"
+    )
 
+    startTime = time.time()
     cuboids = list(cubes_to_cuboids(usedCubes))
-    maxCuboidVol = max(c[3] * c[4] * c[5] for c in cuboids)
-    print(f"// cuboids:", len(cuboids))
-    print(f"// max cuboid volume:", maxCuboidVol, "unit cubes")
+    print(
+        f"// optimised cubes to {len(cuboids)} cuboids in "
+        f"{time.time()-startTime:.1f} seconds"
+    )
     print()
 
     if not RANDOM_CUBOID_COLOURS:
@@ -268,7 +282,5 @@ def main():
         print_colour_definitions(set(c[6] for c in cuboids))
         print()
     print_cube_data(cuboids, width, depth, height)
-    print()
-    print("// time:", format(time.time() - startTime, ".1f"), "s")
 
 main()

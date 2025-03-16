@@ -51,7 +51,7 @@ Converts a voxel file into an OpenSCAD file (`.scad`). Does not require Pillow.
 
 Command line argument: voxel file to read (see "voxel files" below)
 
-Prints the output data to stdout (screen).
+Prints the output data to `stdout` (screen).
 
 ## Voxel files
 * Describes a 3D object using small cubes.
