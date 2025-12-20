@@ -77,17 +77,31 @@ def get_object_data(inputFile):
             except ValueError:
                 sys.exit("Only spaces and digits are allowed after '|'.")
 
+def have_cubes_x_symmetry(cubes, width):
+    # does the object have X symmetry (left vs. right)?
+    #     cubes:  {(x, y, z): colour, ...}
+    #     width:  width of object
+    #     return: bool
+
+    # use integers only to be safe
+    doubleXOffset = width - 1
+    centredCubes = [
+        (x * 2 - doubleXOffset, y, z, cubes[(x, y, z)]) for (x, y, z) in cubes
+    ]
+    return all((-x, y, z, c) in centredCubes for (x, y, z, c) in centredCubes)
+
 def get_largest_solid_cuboid_here(x, y, z, cubes, volumeLimit):
     # find the largest unassigned non-transparent one-colour cuboid starting
     # from the specified location
     # cubes:       {(x, y, z): colourIndex, ...}
-    # volumeLimit: don't bother searching for cuboids larger than this (speed
-    #              optimisation; 0=no limit)
+    # volumeLimit: don't bother searching for cuboids larger than this
+    #              (speed optimisation; 0=no limit)
     # return:      (width, depth, height) of cuboid
 
     totalWidth  = max(c[0] for c in cubes) + 1
     totalDepth  = max(c[1] for c in cubes) + 1
     totalHeight = max(c[2] for c in cubes) + 1
+    startColour = cubes[(x, y, z)]
 
     largestVolume = 0
     bestWidth     = 0
@@ -102,10 +116,7 @@ def get_largest_solid_cuboid_here(x, y, z, cubes, volumeLimit):
                     for z2 in range(z, z + height):
                         for y2 in range(y, y + depth):
                             for x2 in range(x, x + width):
-                                if (
-                                    cubes.get((x2, y2, z2), 0)
-                                    != cubes[(x, y, z)]
-                                ):
+                                if cubes.get((x2, y2, z2), 0) != startColour:
                                     isSolid = False
                                     break
                             if not isSolid:
@@ -145,9 +156,9 @@ def get_largest_solid_cuboid(cubes, volumeLimit):
                     volume = width * depth * height
                     if volume > largestVolume:
                         largestVolume = volume
-                        bestX         = x
-                        bestY         = y
-                        bestZ         = z
+                        bestX = x
+                        bestY = y
+                        bestZ = z
 
     return (bestX, bestY, bestZ)
 
@@ -156,8 +167,8 @@ def cubes_to_cuboids(cubes):
     # cubes:    {(x, y, z): colourIndex, ...}; modified in-place
     # generate: (x, y, z, width, depth, height, colourIndex) per call
 
-    # don't bother searching for cuboids larger than this (speed optimisation;
-    # 0=no limit)
+    # don't bother searching for cuboids larger than this
+    # (speed optimisation; 0=no limit)
     volumeLimit = 0
 
     while len(cubes) > 0:
@@ -189,27 +200,36 @@ def print_colour_definitions(colours):
     # colours: set of colour indexes in object data
     for (ind, (red, green, blue, name)) in enumerate(BLOCK_COLOURS):
         if ind + 1 in colours:
-            print("{} = [{:<4},{:<4},{:<4}];  // was index {}".format(
+            print("{} = [{:.1f},{:.1f},{:.1f}];  // was index {}".format(
                 name,
-                round(red   / 255, 2),
-                round(green / 255, 2),
-                round(blue  / 255, 2),
-                ind + 1
+                red   / 255,
+                green / 255,
+                blue  / 255,
+                ind + 1,
             ))
 
 def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
     # cuboids: [(x, y, z, width, depth, height, colourIndex), ...]
+    # X coordinates have already been centred around 0
 
-    # order: primary = Z, secondary = Y, tertiary = X
-    cuboids.sort(key=lambda c: c[0])
-    cuboids.sort(key=lambda c: c[1])
-    cuboids.sort(key=lambda c: c[2])
+    print("module cuboid(w=1, d=1, h=1) {")
+    print(f"{'':4}cube([w,d,h], center=true);")
+    print("}")
+    print()
 
-    # center everything
-    xOffset = -(totalWidth  - 1) / 2
+    # centre cuboids around Y=0 and Z=0 using translate()
     yOffset = -(totalDepth  - 1) / 2
     zOffset = -(totalHeight - 1) / 2
-    print(f"translate([{xOffset},{yOffset},{zOffset}]) {{")
+    print(f"translate([0,{yOffset},{zOffset}]) {{")
+
+    # sort
+    cuboids.sort(key=lambda c: c[0])  # by X
+    cuboids.sort(key=lambda c: c[1])  # by Y
+    cuboids.sort(key=lambda c: c[2])  # by Z
+    # first X=0, then X<0, then X>0
+    cuboids.sort(key=lambda c: (0 if c[0] == 0 else (1 if c[0] < 0 else 2)))
+
+    prevX = None
 
     for (x, y, z, w, d, h, colourIndex) in cuboids:
         if RANDOM_CUBOID_COLOURS:
@@ -221,13 +241,26 @@ def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
         else:
             colourName = BLOCK_COLOURS[colourIndex-1][3]
         #
+        if x == 0 and prevX is None:
+            print(f"{'':4}// X = 0, by ascending Z")
+        elif x < 0 and (prevX is None or prevX == 0):
+            print()
+            print(f"{'':4}// X < 0, by ascending Z")
+        elif x > 0 and (prevX is None or prevX < 0):
+            print()
+            print(f"{'':4}// X > 0, by ascending Z")
+        #
         print(
             f"{'':4}color({colourName}) "
             f"translate([{x:4},{y:4},{z:4}]) "
-            f"cube([{w:2},{d:2},{h:2}], center=true);"
+            "cuboid("
+            + ("" if max(w, d, h) == 1 else f"{w:2},{d:2},{h:2}")
+            + ");"
         )
+        #
+        prevX = x
 
-    print("}")  # end translate
+    print("}")  # end translate()
 
 def main():
     if len(sys.argv) != 2:
@@ -273,11 +306,36 @@ def main():
         f"{height=}, cubes={len(usedCubes)}"
     )
 
+    print(
+        "// is the set of *cubes* left-right symmetric: "
+        + ("yes" if have_cubes_x_symmetry(usedCubes, width) else "no")
+    )
+
     startTime = time.time()
     cuboids = list(cubes_to_cuboids(usedCubes))
     print(
         f"// optimised cubes to {len(cuboids)} cuboids in "
         f"{time.time()-startTime:.1f} seconds"
+    )
+    print("// max cuboid width/depth/height/volume: {}/{}/{}/{} cubes".format(
+        max(c[3] for c in cuboids),
+        max(c[4] for c in cuboids),
+        max(c[5] for c in cuboids),
+        max(c[3] * c[4] * c[5] for c in cuboids),
+    ))
+
+    # centre X coordinates around 0
+    xOffset = (width - 1) / 2
+    cuboids = [
+        (x - xOffset, y, z, w, d, h, c) for (x, y, z, w, d, h, c) in cuboids
+    ]
+
+    hasCuboidXSymmetry = all(
+        (-x, y, z, w, d, h, c) in cuboids for (x, y, z, w, d, h, c) in cuboids
+    )
+    print(
+        "// is the set of *cuboids* left-right symmetric: "
+        + ("yes" if hasCuboidXSymmetry else "no")
     )
     print()
 
