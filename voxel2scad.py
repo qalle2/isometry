@@ -212,15 +212,11 @@ def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
     # cuboids: [(x, y, z, width, depth, height, colourIndex), ...]
     # X coordinates have already been centred around 0
 
-    print("module cuboid(w=1, d=1, h=1) {")
-    print(f"{'':4}cube([w,d,h], center=true);")
-    print("}")
-    print()
-
-    # centre cuboids around Y=0 and Z=0 using translate()
+    # scale (Nanoblock are 4/3 as tall as wide or long)
+    # and translate (centre cuboids around Y=0 and Z=0)
     yOffset = -(totalDepth  - 1) / 2
     zOffset = -(totalHeight - 1) / 2
-    print(f"translate([0,{yOffset},{zOffset}]) {{")
+    print(f"scale([1,1,4/3]) translate([0,{yOffset},{zOffset}]) {{")
 
     # sort
     cuboids.sort(key=lambda c: c[0])  # by X
@@ -260,7 +256,7 @@ def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
         #
         prevX = x
 
-    print("}")  # end translate()
+    print("}")  # end translate() and scale()
 
 def main():
     if len(sys.argv) != 2:
@@ -343,6 +339,11 @@ def main():
         print("// colours")
         print_colour_definitions(set(c[6] for c in cuboids))
         print()
+
+    print("module cuboid(w=1, d=1, h=1) {")
+    print(f"{'':4}cube([w,d,h], center=true);")
+    print("}")
+    print()
     print_cube_data(cuboids, width, depth, height)
 
 main()
