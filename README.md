@@ -49,7 +49,10 @@ Note: all arguments except *axesToMirror* are required.
 ## voxel2scad.py
 Converts a voxel file into an OpenSCAD file (`.scad`). Does not require Pillow.
 
-Command line argument: voxel file to read (see "voxel files" below)
+Command line arguments: *inputFile combineColours optimise*
+* *inputFile*: The voxel file to read. Required. See "voxel files" below.
+* *combineColours*: Make all non-transparent cubes black? Optional. `0`=no (default), `1`=yes.
+* *optimise*: Combine cubes to larger cuboids? Optional. `0`=no, `1`=yes (default). Slow but makes the OpenSCAD file smaller. Works more efficiently if *combineColours*=1.
 
 Prints the output data to `stdout` (screen).
 
@@ -64,11 +67,13 @@ Prints the output data to `stdout` (screen).
   * empty lines
   * comments (lines that start with `#`)
 * "Setting" lines:
-  * All of these settings must be specified somewhere in the file, each on their own line.
-  * Object width in blocks: `W` immediately followed by an integer 1&ndash;256.
-  * Object depth in blocks: `D` immediately followed by an integer 1&ndash;256.
-  * Object height in blocks: `H` immediately followed by an integer 1&ndash;256.
-  * Background colour: `B` immediately followed by 6 hexadecimal digits (`RRGGBB`, `000000`&ndash;`ffffff`). Not used by `voxel2scad.py`.
+  * Each one on its own line.
+  * Object width in blocks: `W` immediately followed by an integer 1&ndash;256. Required.
+  * Object depth in blocks: `D` immediately followed by an integer 1&ndash;256. Required.
+  * Object height in blocks: `H` immediately followed by an integer 1&ndash;256. Required.
+  * Redefine colours: `Cirrggbb` where `i` is the index (0 to 9) and `rrggbb` is 6 hexadecimal digits, `000000`&ndash;`ffffff`.
+    Redefining index 0 has no effect when using `voxel2scad.py`. Not implemented yet for `voxel2png.py`. Optional.
+  * `Brrggbb`: define background colour; legacy syntax for `C0rrggbb`; still used and required by `voxel2png.py`.
 * "Block" lines:
   * Each line describes a slice of *objectWidth*&times;1&times;1 blocks of the object from left to right.
   * Syntax of each line: a pipe (`|`) followed by up to *objectWidth* spaces or digits, plus optionally newline.

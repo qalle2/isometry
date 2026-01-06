@@ -1,40 +1,32 @@
 # Convert a voxel file into an OpenSCAD file.
 
-import os, random, sys, time
+import os, sys, time
 
-# colours of blocks in "blocks-small.png", excluding transparent;
-# format: (red, green, blue, name)
-BLOCK_COLOURS = [
-    ( 85,  85,  85, "BLK"),
-    (255,   0,   0, "RED"),
-    (255, 128,   0, "ORA"),
-    (255, 255,   0, "YEL"),
-    (  0, 255,   0, "GRN"),
-    (  0, 255, 255, "CYA"),
-    (  0,   0, 255, "BLU"),
-    (255,   0, 255, "MAG"),
-    (255, 255, 255, "WHI"),
+DEFAULT_PALETTE = [
+    ( 85,  85,  85),
+    (255,   0,   0),
+    (255, 128,   0),
+    (255, 255,   0),
+    (  0, 255,   0),
+    (  0, 255, 255),
+    (  0,   0, 255),
+    (255,   0, 255),
+    (255, 255, 255),
 ]
-
-# make all nontransparent cubes the same colour?
-# (will reduce the number of cuboids needed)
-COMBINE_CUBE_COLOURS = 0  # 0=no, 1=yes
-
-# assign each cuboid a random colour instead of the original colour?
-RANDOM_CUBOID_COLOURS = 0  # 0=no, 1=yes
 
 def get_lines(filename):
     # generate non-empty lines without leading or trailing whitespace
     with open(filename, "rt", encoding="ascii") as handle:
         handle.seek(0)
         for line in handle:
-            if line := line.strip():
+            line = line.strip()
+            if line:
                 yield line
 
-def decode_int(stri, min_, max_, name):
+def decode_int(stri, min_, max_, name, base=10):
     # decode an integer
     try:
-        i = int(stri, 10)
+        i = int(stri, base)
         if not min_ <= i <= max_:
             raise ValueError
     except ValueError:
@@ -43,9 +35,12 @@ def decode_int(stri, min_, max_, name):
 
 def get_object_properties(inputFile):
     # read properties of object from input file;
-    # return (width, depth, height) in blocks
+    # return (width, depth, height, palette);
+    #     the first 3 are in cubes;
+    #     palette has (red, green, blue) for indexes 1-9
 
     width = depth = height = None
+    palette = DEFAULT_PALETTE.copy()
 
     for line in get_lines(inputFile):
         if line.upper().startswith("W"):
@@ -54,8 +49,18 @@ def get_object_properties(inputFile):
             depth = decode_int(line[1:], 1, 256, "object depth")
         elif line.upper().startswith("H"):
             height = decode_int(line[1:], 1, 256, "object height")
+        elif line.upper().startswith("C"):
+            colourDef = decode_int(
+                line[1:], 0x0, 0x9_ffffff, "colour definition", 16
+            )
+            index_ =  colourDef >> 24
+            red    = (colourDef >> 16) & 0xff
+            green  = (colourDef >>  8) & 0xff
+            blue   =  colourDef        & 0xff
+            if index_ > 0:
+                palette[index_-1] = (red, green, blue)
         elif (
-                not line.startswith("B")  # background colour
+                not line.startswith("B")  # legacy command for C0...
             and not line.startswith("|")
             and not line.startswith("#")
         ):
@@ -64,7 +69,7 @@ def get_object_properties(inputFile):
     if any(v is None for v in (width, depth, height)):
         sys.exit("Must define width, depth and height.")
 
-    return (width, depth, height)
+    return (width, depth, height, palette)
 
 def get_object_data(inputFile):
     # generate colours of building blocks from input file
@@ -167,8 +172,7 @@ def cubes_to_cuboids(cubes):
     # cubes:    {(x, y, z): colourIndex, ...}; modified in-place
     # generate: (x, y, z, width, depth, height, colourIndex) per call
 
-    # don't bother searching for cuboids larger than this
-    # (speed optimisation; 0=no limit)
+    # largest cuboid found so far (0=none)
     volumeLimit = 0
 
     while len(cubes) > 0:
@@ -196,16 +200,22 @@ def cubes_to_cuboids(cubes):
                 for x2 in range(x, x + width):
                     cubes.pop((x2, y2, z2))
 
-def print_colour_definitions(colours):
-    # colours: set of colour indexes in object data
-    for (ind, (red, green, blue, name)) in enumerate(BLOCK_COLOURS):
-        if ind + 1 in colours:
-            print("{} = [{:.1f},{:.1f},{:.1f}];  // was index {}".format(
-                name,
-                red   / 255,
-                green / 255,
-                blue  / 255,
-                ind + 1,
+def cubes_to_cuboids_unoptimised(cubes):
+    # like cubes_to_cuboids(), but each cuboid is just a cube
+    # cubes:    {(x, y, z): colourIndex, ...}
+    # generate: (x, y, z, width, depth, height, colourIndex) per call
+
+    for (x, y, z) in cubes:
+        yield (x, y, z, 1, 1, 1, cubes[(x, y, z)])
+
+def print_colour_definitions(indexesUsed, palette):
+    # indexesUsed: distinct non-transparent colour indexes used by object data
+    # palette: list with (red, green, blue) for colour indexes 1-9
+
+    for (ind, (red, green, blue)) in enumerate(palette):
+        if ind + 1 in indexesUsed:
+            print("COL{} = [{:3}/255,{:3}/255,{:3}/255];".format(
+                ind + 1, red, green, blue
             ))
 
 def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
@@ -228,15 +238,6 @@ def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
     prevX = None
 
     for (x, y, z, w, d, h, colourIndex) in cuboids:
-        if RANDOM_CUBOID_COLOURS:
-            colourName = "[{},{},{}]".format(
-                random.randrange(0, 100) / 100,
-                random.randrange(0, 100) / 100,
-                random.randrange(0, 100) / 100
-            )
-        else:
-            colourName = BLOCK_COLOURS[colourIndex-1][3]
-        #
         if x == 0 and prevX is None:
             print(f"{'':4}// X = 0, by ascending Z")
         elif x < 0 and (prevX is None or prevX == 0):
@@ -247,8 +248,8 @@ def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
             print(f"{'':4}// X > 0, by ascending Z")
         #
         print(
-            f"{'':4}color({colourName}) "
-            f"translate([{x:4},{y:4},{z:4}]) "
+            f"{'':4}color(COL{colourIndex}) "
+            f"translate([{x:5},{y:4},{z:4}]) "
             "cuboid("
             + ("" if max(w, d, h) == 1 else f"{w:2},{d:2},{h:2}")
             + ");"
@@ -259,16 +260,22 @@ def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
     print("}")  # end translate() and scale()
 
 def main():
-    if len(sys.argv) != 2:
+    # parse args
+    if not 2 <= len(sys.argv) <= 4:
         sys.exit(
-            "Convert a voxel file into an OpenSCAD file. Argument: input "
-            "file. See README.md for details."
+            "Convert a voxel file into an OpenSCAD file. "
+            "Arguments: inputFile combineColours optimise. "
+            "The last two args are optional. "
+            "Valid values are 0 or 1 for each. "
+            "See README.md for details."
         )
     inputFile = sys.argv[1]
     if not os.path.isfile(inputFile):
         sys.exit("Input file not found.")
+    combineColours  = (len(sys.argv) >= 3 and sys.argv[2] == "1")
+    optimiseCuboids = (len(sys.argv) <  4 or  sys.argv[3] == "1")
 
-    (width, depth, height) = get_object_properties(inputFile)
+    (width, depth, height, palette) = get_object_properties(inputFile)
 
     # get object data (colours of building blocks)
     objData = list(get_object_data(inputFile))
@@ -276,12 +283,12 @@ def main():
         sys.exit(f"Can't have more than {width} characters after '|'.")
     if len(objData) != height * depth:
         sys.exit(f"Must have {height*depth} lines starting with '|'.")
-    if max((max(l) if l else 0) for l in objData) > len(BLOCK_COLOURS):
+    if max((max(l) if l else 0) for l in objData) > len(palette):
         sys.exit(
-            f"Can't have colour numbers greater than {len(BLOCK_COLOURS)}."
+            f"Can't have colour numbers greater than {len(palette)}."
         )
 
-    if COMBINE_CUBE_COLOURS:
+    if combineColours:
         objData = [tuple(1 if c > 0 else 0 for c in row) for row in objData]
 
     # wrap each layer in its own tuple to get a tuple of tuples of tuples
@@ -289,31 +296,37 @@ def main():
         tuple(objData[i:i+depth]) for i in range(0, height * depth, depth)
     )
 
-    # convert object data into a dict
+    # convert object data into a dict; mirror Y coordinates
     usedCubes = dict()  # {(x, y, z): colour, ...}
     for (z, layer) in enumerate(objData):
         for (y, row) in enumerate(layer):
             for (x, colour) in enumerate(row):
                 if colour > 0:
-                    usedCubes[(x, y, z)] = colour
+                    usedCubes[(x, depth - 1 - y, z)] = colour
     del objData
+    print(f"// model read: {os.path.basename(inputFile)}")
     print(
-        f"// read {os.path.basename(inputFile)}: {width=}, {depth=}, "
-        f"{height=}, cubes={len(usedCubes)}"
+        f"// model size in cubes: {width=}, {depth=}, {height=}, "
+        f"volume={len(usedCubes)}"
     )
 
     print(
-        "// is the set of *cubes* left-right symmetric: "
+        "// is the model left-right symmetric: "
         + ("yes" if have_cubes_x_symmetry(usedCubes, width) else "no")
     )
 
     startTime = time.time()
-    cuboids = list(cubes_to_cuboids(usedCubes))
+    if optimiseCuboids:
+        cuboids = list(cubes_to_cuboids(usedCubes))
+    else:
+        cuboids = list(cubes_to_cuboids_unoptimised(usedCubes))
     print(
-        f"// optimised cubes to {len(cuboids)} cuboids in "
+        f"// optimised model to {len(cuboids)} cuboids in "
         f"{time.time()-startTime:.1f} seconds"
     )
-    print("// max cuboid width/depth/height/volume: {}/{}/{}/{} cubes".format(
+    print(
+        "// largest cuboids in cubes: "
+        "width={}, depth={}, height={}, volume={}".format(
         max(c[3] for c in cuboids),
         max(c[4] for c in cuboids),
         max(c[5] for c in cuboids),
@@ -330,16 +343,14 @@ def main():
         (-x, y, z, w, d, h, c) in cuboids for (x, y, z, w, d, h, c) in cuboids
     )
     print(
-        "// is the set of *cuboids* left-right symmetric: "
+        "// is the set of optimised cuboids left-right symmetric: "
         + ("yes" if hasCuboidXSymmetry else "no")
     )
     print()
 
-    if not RANDOM_CUBOID_COLOURS:
-        print("// colours")
-        print_colour_definitions(set(c[6] for c in cuboids))
-        print()
-
+    print("// colours")
+    print_colour_definitions(frozenset(c[6] for c in cuboids), palette)
+    print()
     print("module cuboid(w=1, d=1, h=1) {")
     print(f"{'':4}cube([w,d,h], center=true);")
     print("}")
