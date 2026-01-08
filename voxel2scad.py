@@ -3,19 +3,44 @@
 import os, sys, time
 
 DEFAULT_PALETTE = [
-    ( 85,  85,  85),
-    (255,   0,   0),
-    (255, 128,   0),
-    (255, 255,   0),
-    (  0, 255,   0),
-    (  0, 255, 255),
-    (  0,   0, 255),
-    (255,   0, 255),
-    (255, 255, 255),
+    ( 85,  85,  85),  # 1: dark grey
+    (255,   0,   0),  # 2: red
+    (255, 128,   0),  # 3: orange
+    (255, 255,   0),  # 4: yellow
+    (  0, 255,   0),  # 5: green
+    (  0, 255, 255),  # 6: cyan
+    (  0,   0, 255),  # 7: blue
+    (255,   0, 255),  # 8: magenta
+    (255, 255, 255),  # 9: white
 ]
+
+# --- helper functions --------------------------------------------------------
+
+def decode_int(stri, min_, max_, name):
+    # decode an integer
+
+    try:
+        i = int(stri, 10)
+        if not min_ <= i <= max_:
+            raise ValueError
+    except ValueError:
+        sys.exit(f"{name} must be an integer between {min_} and {max_}")
+    return i
+
+def decode_colour_code(colour):
+    # decode a hexadecimal RRGGBB colour code into (red, green, blue)
+
+    try:
+        colour = int(colour, 16)
+        if not 0 <= colour <= 0xffffff:
+            raise ValueError
+    except ValueError:
+        sys.exit("Expected a hexadecimal RRGGBB colour code.")
+    return tuple((colour >> s) & 0xff for s in (16, 8, 0))
 
 def get_lines(filename):
     # generate non-empty lines without leading or trailing whitespace
+
     with open(filename, "rt", encoding="ascii") as handle:
         handle.seek(0)
         for line in handle:
@@ -23,15 +48,7 @@ def get_lines(filename):
             if line:
                 yield line
 
-def decode_int(stri, min_, max_, name, base=10):
-    # decode an integer
-    try:
-        i = int(stri, base)
-        if not min_ <= i <= max_:
-            raise ValueError
-    except ValueError:
-        sys.exit(f"{name} must be an integer between {min_} and {max_}")
-    return i
+# -----------------------------------------------------------------------------
 
 def get_object_properties(inputFile):
     # read properties of object from input file;
@@ -50,15 +67,9 @@ def get_object_properties(inputFile):
         elif line.upper().startswith("H"):
             height = decode_int(line[1:], 1, 256, "object height")
         elif line.upper().startswith("C"):
-            colourDef = decode_int(
-                line[1:], 0x0, 0x9_ffffff, "colour definition", 16
-            )
-            index_ =  colourDef >> 24
-            red    = (colourDef >> 16) & 0xff
-            green  = (colourDef >>  8) & 0xff
-            blue   =  colourDef        & 0xff
+            index_ = decode_int(line[1], 0, 9, "colour index")
             if index_ > 0:
-                palette[index_-1] = (red, green, blue)
+                palette[index_-1] = decode_colour_code(line[2:])
         elif (
                 not line.startswith("B")  # legacy command for C0...
             and not line.startswith("|")
