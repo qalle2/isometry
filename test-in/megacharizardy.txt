@@ -1,8 +1,10 @@
 # Nanoblock Mega Charizard Y
+# NBPM_058 @ https://bulbapedia.bulbagarden.net/wiki/Pok%C3%A9mon_Nanoblocks
 
 W29
 D20
 H18
+
 # black (eyes only)
 C1555555
 # orange
