@@ -50,6 +50,20 @@ def get_lines(filename):
 
 # -----------------------------------------------------------------------------
 
+def parse_bool_arg(argvIndex, default, descr):
+    # argvIndex: index in sys.argv
+    # default:   bool
+    # descr:     description, str
+    # return:    bool
+
+    if len(sys.argv) < argvIndex + 1:
+        return default
+
+    value = sys.argv[argvIndex]
+    if value not in ("0", "1"):
+        sys.exit(f"{descr} argument must be 0 or 1.")
+    return bool(int(value))
+
 def get_object_properties(inputFile):
     # read properties of object from input file;
     # return (width, depth, height, palette);
@@ -108,7 +122,7 @@ def have_cubes_x_symmetry(cubes, width):
 
 def get_largest_solid_cuboid_here(x, y, z, cubes, volumeLimit):
     # find the largest unassigned non-transparent one-colour cuboid starting
-    # from the specified location
+    # from the specified location; hidden cubes may get any colour
     # cubes:       {(x, y, z): colourIndex, ...}
     # volumeLimit: don't bother searching for cuboids larger than this
     #              (speed optimisation; 0=no limit)
@@ -150,7 +164,8 @@ def get_largest_solid_cuboid_here(x, y, z, cubes, volumeLimit):
     return (bestWidth, bestDepth, bestHeight)
 
 def get_largest_solid_cuboid(cubes, volumeLimit):
-    # find the largest unassigned non-transparent one-colour cuboid anywhere
+    # find the largest unassigned non-transparent one-colour cuboid anywhere;
+    # hidden cubes may get any colour
     # cubes:       {(x, y, z): colourIndex, ...}
     # volumeLimit: don't bother searching for cuboids larger than this (speed
     #              optimisation; 0=no limit)
@@ -179,7 +194,8 @@ def get_largest_solid_cuboid(cubes, volumeLimit):
     return (bestX, bestY, bestZ)
 
 def cubes_to_cuboids(cubes):
-    # combine unit cubes into larger rectangular cuboids
+    # combine unit cubes into larger rectangular cuboids;
+    # hidden cubes may get any colour
     # cubes:    {(x, y, z): colourIndex, ...}; modified in-place
     # generate: (x, y, z, width, depth, height, colourIndex) per call
 
@@ -275,7 +291,7 @@ def main():
     if not 2 <= len(sys.argv) <= 4:
         sys.exit(
             "Convert a voxel file into an OpenSCAD file. "
-            "Arguments: inputFile combineColours optimise. "
+            "Arguments: inputFile combineColours optimiseCuboids. "
             "The last two args are optional. "
             "Valid values are 0 or 1 for each. "
             "See README.md for details."
@@ -283,8 +299,9 @@ def main():
     inputFile = sys.argv[1]
     if not os.path.isfile(inputFile):
         sys.exit("Input file not found.")
-    combineColours  = (len(sys.argv) >= 3 and sys.argv[2] == "1")
-    optimiseCuboids = (len(sys.argv) <  4 or  sys.argv[3] == "1")
+
+    combineColours  = parse_bool_arg(2, False, "combineColours")
+    optimiseCuboids = parse_bool_arg(3, True,  "optimiseCuboids")
 
     (width, depth, height, palette) = get_object_properties(inputFile)
 
@@ -307,24 +324,41 @@ def main():
         tuple(objData[i:i+depth]) for i in range(0, height * depth, depth)
     )
 
-    # convert object data into a dict; mirror Y coordinates
+    # convert object data into a dict
     usedCubes = dict()  # {(x, y, z): colour, ...}
     for (z, layer) in enumerate(objData):
         for (y, row) in enumerate(layer):
             for (x, colour) in enumerate(row):
                 if colour > 0:
-                    usedCubes[(x, depth - 1 - y, z)] = colour
+                    usedCubes[(x, y, z)] = colour
     del objData
+
+    # mirror Y coordinates
+    usedCubes = dict(
+        ((x, depth - 1 - y, z), usedCubes[(x, y, z)])
+        for (x, y, z) in usedCubes
+    )
+
+    hiddenCubes = set(
+        (x, y, z) for (x, y, z) in usedCubes if
+            (x - 1, y,     z    ) in usedCubes
+        and (x + 1, y,     z    ) in usedCubes
+        and (x,     y - 1, z    ) in usedCubes
+        and (x,     y + 1, z    ) in usedCubes
+        and (x,     y    , z - 1) in usedCubes
+        and (x,     y    , z + 1) in usedCubes
+    )
+
     print(f"// model read: {os.path.basename(inputFile)}")
     print(
         f"// model size in cubes: {width=}, {depth=}, {height=}, "
         f"volume={len(usedCubes)}"
     )
-
     print(
         "// is the model left-right symmetric: "
         + ("yes" if have_cubes_x_symmetry(usedCubes, width) else "no")
     )
+    print(f"// hidden cubes (all faces touch other cubes): {len(hiddenCubes)}")
 
     startTime = time.time()
     if optimiseCuboids:
@@ -335,13 +369,8 @@ def main():
         f"// optimised model to {len(cuboids)} cuboids in "
         f"{time.time()-startTime:.1f} seconds"
     )
-    print(
-        "// largest cuboids in cubes: "
-        "width={}, depth={}, height={}, volume={}".format(
-        max(c[3] for c in cuboids),
-        max(c[4] for c in cuboids),
-        max(c[5] for c in cuboids),
-        max(c[3] * c[4] * c[5] for c in cuboids),
+    print("// volume of largest cuboid: {} cubes".format(
+        max(c[3] * c[4] * c[5] for c in cuboids)
     ))
 
     # centre X coordinates around 0
