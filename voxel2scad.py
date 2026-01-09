@@ -122,7 +122,7 @@ def have_cubes_x_symmetry(cubes, width):
 
 def get_largest_solid_cuboid_here(x, y, z, cubes, volumeLimit):
     # find the largest unassigned non-transparent one-colour cuboid starting
-    # from the specified location; hidden cubes may get any colour
+    # from the specified location
     # cubes:       {(x, y, z): colourIndex, ...}
     # volumeLimit: don't bother searching for cuboids larger than this
     #              (speed optimisation; 0=no limit)
@@ -164,8 +164,7 @@ def get_largest_solid_cuboid_here(x, y, z, cubes, volumeLimit):
     return (bestWidth, bestDepth, bestHeight)
 
 def get_largest_solid_cuboid(cubes, volumeLimit):
-    # find the largest unassigned non-transparent one-colour cuboid anywhere;
-    # hidden cubes may get any colour
+    # find the largest unassigned non-transparent one-colour cuboid anywhere
     # cubes:       {(x, y, z): colourIndex, ...}
     # volumeLimit: don't bother searching for cuboids larger than this (speed
     #              optimisation; 0=no limit)
@@ -194,8 +193,7 @@ def get_largest_solid_cuboid(cubes, volumeLimit):
     return (bestX, bestY, bestZ)
 
 def cubes_to_cuboids(cubes):
-    # combine unit cubes into larger rectangular cuboids;
-    # hidden cubes may get any colour
+    # combine unit cubes into larger rectangular cuboids
     # cubes:    {(x, y, z): colourIndex, ...}; modified in-place
     # generate: (x, y, z, width, depth, height, colourIndex) per call
 
@@ -339,8 +337,8 @@ def main():
         for (x, y, z) in usedCubes
     )
 
-    hiddenCubes = set(
-        (x, y, z) for (x, y, z) in usedCubes if
+    hiddenCubeCnt = sum(
+        1 for (x, y, z) in usedCubes if
             (x - 1, y,     z    ) in usedCubes
         and (x + 1, y,     z    ) in usedCubes
         and (x,     y - 1, z    ) in usedCubes
@@ -349,16 +347,16 @@ def main():
         and (x,     y    , z + 1) in usedCubes
     )
 
-    print(f"// model read: {os.path.basename(inputFile)}")
+    print("// model read:", os.path.basename(inputFile))
     print(
         f"// model size in cubes: {width=}, {depth=}, {height=}, "
         f"volume={len(usedCubes)}"
     )
     print(
-        "// is the model left-right symmetric: "
-        + ("yes" if have_cubes_x_symmetry(usedCubes, width) else "no")
+        "// is the model left-right symmetric:",
+        ("yes" if have_cubes_x_symmetry(usedCubes, width) else "no")
     )
-    print(f"// hidden cubes (all faces touch other cubes): {len(hiddenCubes)}")
+    print("// hidden cubes (all faces touch other cubes):", hiddenCubeCnt)
 
     startTime = time.time()
     if optimiseCuboids:
@@ -383,8 +381,8 @@ def main():
         (-x, y, z, w, d, h, c) in cuboids for (x, y, z, w, d, h, c) in cuboids
     )
     print(
-        "// is the set of optimised cuboids left-right symmetric: "
-        + ("yes" if hasCuboidXSymmetry else "no")
+        "// is the set of optimised cuboids left-right symmetric:",
+        ("yes" if hasCuboidXSymmetry else "no")
     )
     print()
 
