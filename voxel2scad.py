@@ -1,6 +1,15 @@
 # Convert a voxel file into an OpenSCAD file.
 
+# TODO: allow overlapping cuboids in non-don't-care cubes too
+
 import os, sys, time
+
+# index of the "don't care" colour (optimised to transparent or any colour)
+DONT_CARE_COLOUR_INDEX = -1
+# index of transparent colour
+TRANSPARENT_COLOUR_INDEX = 0
+# what colour index to combine opaque colours into
+COMBINED_COLOUR_INDEX = 1
 
 DEFAULT_PALETTE = [
     ( 85,  85,  85),  # 1: dark grey
@@ -50,19 +59,24 @@ def get_lines(filename):
 
 # -----------------------------------------------------------------------------
 
-def parse_bool_arg(argvIndex, default, descr):
+def parse_int_arg(argvIndex, default, max_, descr):
+    # parse nonnegative integer argument
     # argvIndex: index in sys.argv
-    # default:   bool
+    # default:   int
+    # max_:      int
     # descr:     description, str
-    # return:    bool
+    # return:    int
 
     if len(sys.argv) < argvIndex + 1:
         return default
 
-    value = sys.argv[argvIndex]
-    if value not in ("0", "1"):
-        sys.exit(f"{descr} argument must be 0 or 1.")
-    return bool(int(value))
+    try:
+        value = int(sys.argv[argvIndex], 10)
+        if not 0 <= value <= max_:
+            raise ValueError
+    except ValueError:
+        sys.exit(f"{descr} argument must be an integer 0-{max_}.")
+    return value
 
 def get_object_properties(inputFile):
     # read properties of object from input file;
@@ -107,6 +121,77 @@ def get_object_data(inputFile):
             except ValueError:
                 sys.exit("Only spaces and digits are allowed after '|'.")
 
+def get_outside_cubes(usedCubes, width, depth, height):
+    # usedCubes: set-like with (x, y, z) of each opaque cube in the object
+    # width, depth, height: size of object in cubes
+    # return: set with (x, y, z) of each (transparent) outside cube
+
+    # algorithm: orthogonal flood fill using 1 cube of transparent padding on
+    # each side of the object
+
+    # start from two opposite corners for speed
+    outsideCubes = set(( (-1, -1, -1), (width, depth, height) ))
+
+    while True:
+        newCubes   = set()              # new outside cubes
+        oldCubeCnt = len(outsideCubes)  # old outside cube count
+        # for each known outside cube, add transparent orthogonal neighbours
+        for (x, y, z) in outsideCubes:
+            for offset in (-1, 1):
+                neighX = x + offset
+                neighY = y + offset
+                neighZ = z + offset
+                if -1 <= neighX <= width and (neighX, y, z) not in usedCubes:
+                    newCubes.add((neighX, y, z))
+                if -1 <= neighY <= depth and (x, neighY, z) not in usedCubes:
+                    newCubes.add((x, neighY, z))
+                if -1 <= neighZ <= height and (x, y, neighZ) not in usedCubes:
+                    newCubes.add((x, y, neighZ))
+        outsideCubes.update(newCubes)
+        if len(outsideCubes) == oldCubeCnt:
+            break
+
+    # remove cubes that belong in the transparent padding
+    outsideCubes = set(
+        (x, y, z) for (x, y, z) in outsideCubes if
+            0 <= x < width
+        and 0 <= y < depth
+        and 0 <= z < height
+    )
+
+    return outsideCubes
+
+def get_visible_cubes(usedCubes, outsideCubes, width, depth, height):
+    # usedCubes: set-like with (x, y, z) of each opaque cube in the object
+    # outsideCubes: set-like with (x, y, z) of each transparent cube outside
+    #               the object
+    # width, depth, height: size of object in cubes
+    # generate: (x, y, z) of each (opaque) visible cube
+
+    # algorithm: an opaque cube is visible if:
+    #   - it is an orthogonal neighbour of an outside cube
+    #   and/or
+    #   - it is at the face (or edge or corner) of the space in which the
+    #     object is
+
+    for (x, y, z) in usedCubes:
+        neighbours = frozenset((
+            (x - 1, y,     z    ),
+            (x + 1, y,     z    ),
+            (x,     y - 1, z    ),
+            (x,     y + 1, z    ),
+            (x,     y,     z - 1),
+            (x,     y,     z + 1),
+        ))
+        if (
+               min(x, y, z) == 0
+            or x in (0, width  - 1)
+            or y in (0, depth  - 1)
+            or z in (0, height - 1)
+            or neighbours & outsideCubes
+        ):
+            yield (x, y, z)
+
 def have_cubes_x_symmetry(cubes, width):
     # does the object have X symmetry (left vs. right)?
     #     cubes:  {(x, y, z): colour, ...}
@@ -133,33 +218,40 @@ def get_largest_solid_cuboid_here(x, y, z, cubes, volumeLimit):
     totalHeight = max(c[2] for c in cubes) + 1
     startColour = cubes[(x, y, z)]
 
+    if startColour in (DONT_CARE_COLOUR_INDEX, TRANSPARENT_COLOUR_INDEX):
+        raise ValueError
+
     largestVolume = 0
-    bestWidth     = 0
-    bestDepth     = 0
-    bestHeight    = 0
 
     for height in range(1, totalHeight - z + 1):
         for depth in range(1, totalDepth - y + 1):
             for width in range(1, totalWidth - x + 1):
                 if volumeLimit == 0 or height * depth * width <= volumeLimit:
-                    isSolid = True
+                    volume = 0  # 0 = not solid
                     for z2 in range(z, z + height):
                         for y2 in range(y, y + depth):
                             for x2 in range(x, x + width):
-                                if cubes.get((x2, y2, z2), 0) != startColour:
-                                    isSolid = False
+                                thisColour = cubes.get(
+                                    (x2, y2, z2), TRANSPARENT_COLOUR_INDEX
+                                )
+                                if thisColour == startColour:
+                                    volume += 1
+                                elif thisColour != DONT_CARE_COLOUR_INDEX:
+                                    volume = 0
                                     break
-                            if not isSolid:
+                            if volume == 0:
                                 break
-                        if not isSolid:
+                        if volume == 0:
                             break
-                    if isSolid:
-                        volume = width * depth * height
+                    if volume > 0:
                         if volume > largestVolume:
                             largestVolume = volume
                             bestWidth  = width
                             bestDepth  = depth
                             bestHeight = height
+
+    if largestVolume == 0:
+        raise ValueError
 
     return (bestWidth, bestDepth, bestHeight)
 
@@ -178,8 +270,10 @@ def get_largest_solid_cuboid(cubes, volumeLimit):
     for z in range(totalHeight):
         for y in range(totalDepth):
             for x in range(totalWidth):
-                thisColour = cubes.get((x, y, z), 0)
-                if thisColour != 0:
+                thisColour = cubes.get((x, y, z), TRANSPARENT_COLOUR_INDEX)
+                if thisColour not in (
+                    DONT_CARE_COLOUR_INDEX, TRANSPARENT_COLOUR_INDEX
+                ):
                     (width, depth, height) = get_largest_solid_cuboid_here(
                         x, y, z, cubes, volumeLimit
                     )
@@ -189,6 +283,9 @@ def get_largest_solid_cuboid(cubes, volumeLimit):
                         bestX = x
                         bestY = y
                         bestZ = z
+
+    if largestVolume == 0:
+        sys.exit("Error: no cuboid found.")
 
     return (bestX, bestY, bestZ)
 
@@ -200,7 +297,7 @@ def cubes_to_cuboids(cubes):
     # largest cuboid found so far (0=none)
     volumeLimit = 0
 
-    while len(cubes) > 0:
+    while True:
         # find the largest unassigned non-transparent one-colour cuboid
         (x, y, z) = get_largest_solid_cuboid(cubes, volumeLimit)
         (width, depth, height) = get_largest_solid_cuboid_here(
@@ -223,7 +320,12 @@ def cubes_to_cuboids(cubes):
         for z2 in range(z, z + height):
             for y2 in range(y, y + depth):
                 for x2 in range(x, x + width):
-                    cubes.pop((x2, y2, z2))
+                    if cubes[(x2, y2, z2)] != DONT_CARE_COLOUR_INDEX:
+                        cubes.pop((x2, y2, z2))
+
+        # exit if no colours besides "don't care"
+        if not set(cubes.values()) - set((DONT_CARE_COLOUR_INDEX,)):
+            break
 
 def cubes_to_cuboids_unoptimised(cubes):
     # like cubes_to_cuboids(), but each cuboid is just a cube
@@ -289,22 +391,23 @@ def main():
     if not 2 <= len(sys.argv) <= 4:
         sys.exit(
             "Convert a voxel file into an OpenSCAD file. "
-            "Arguments: inputFile combineColours optimiseCuboids. "
-            "The last two args are optional. "
-            "Valid values are 0 or 1 for each. "
+            "Arguments: inputFile combineColours optimisationLevel. "
+            "combineColours: 0 or 1, default=0. "
+            "optimisationLevel: 0-2, default=2. "
             "See README.md for details."
         )
     inputFile = sys.argv[1]
     if not os.path.isfile(inputFile):
         sys.exit("Input file not found.")
 
-    combineColours  = parse_bool_arg(2, False, "combineColours")
-    optimiseCuboids = parse_bool_arg(3, True,  "optimiseCuboids")
+    combineColours    = bool(parse_int_arg(2, 0, 1, "combineColours"))
+    optimisationLevel = parse_int_arg(3, 2, 2, "optimisationLevel")
 
     (width, depth, height, palette) = get_object_properties(inputFile)
 
     # get object data (colours of building blocks)
     objData = list(get_object_data(inputFile))
+    print("// model read:", os.path.basename(inputFile))
     if max(len(l) for l in objData) > width:
         sys.exit(f"Can't have more than {width} characters after '|'.")
     if len(objData) != height * depth:
@@ -314,8 +417,10 @@ def main():
             f"Can't have colour numbers greater than {len(palette)}."
         )
 
-    if combineColours:
-        objData = [tuple(1 if c > 0 else 0 for c in row) for row in objData]
+    print(
+        f"// model size in cubes: {width=}, {depth=}, {height=}, "
+        f"width*depth*height={width*depth*height}"
+    )
 
     # wrap each layer in its own tuple to get a tuple of tuples of tuples
     objData = tuple(
@@ -327,7 +432,7 @@ def main():
     for (z, layer) in enumerate(objData):
         for (y, row) in enumerate(layer):
             for (x, colour) in enumerate(row):
-                if colour > 0:
+                if colour != TRANSPARENT_COLOUR_INDEX:
                     usedCubes[(x, y, z)] = colour
     del objData
 
@@ -337,31 +442,72 @@ def main():
         for (x, y, z) in usedCubes
     )
 
-    hiddenCubeCnt = sum(
-        1 for (x, y, z) in usedCubes if
-            (x - 1, y,     z    ) in usedCubes
-        and (x + 1, y,     z    ) in usedCubes
-        and (x,     y - 1, z    ) in usedCubes
-        and (x,     y + 1, z    ) in usedCubes
-        and (x,     y    , z - 1) in usedCubes
-        and (x,     y    , z + 1) in usedCubes
+    print(
+        "// make all opaque colours black:",
+        ("yes" if combineColours else "no")
+    )
+    if combineColours:
+        usedCubes = dict(
+            (c, (
+                usedCubes[c] if usedCubes[c] in (
+                    DONT_CARE_COLOUR_INDEX, TRANSPARENT_COLOUR_INDEX
+                ) else COMBINED_COLOUR_INDEX
+            )) for c in usedCubes
+        )
+    print(
+        "// distinct colours (incl. transparent):",
+        len(set(usedCubes.values()))
     )
 
-    print("// model read:", os.path.basename(inputFile))
+    # there can be four kinds of cubes in the object:
+    # - outside (always transparent)
+    # - surface (visible, always opaque, separates outside from hidden)
+    # - transparent hidden (below surface)
+    # - opaque hidden (below surface)
+
+    # get coordinates of (transparent) cubes outside the object
+    outsideCubes = get_outside_cubes(usedCubes, width, depth, height)
+
+    # get coordinates of (opaque) visible cubes
+    visibleCubes = set(get_visible_cubes(
+        usedCubes, outsideCubes, width, depth, height
+    ))
+
+    # get coordinates of (opaque or transparent) hidden cubes
+    hiddenCubes = set()
+    for z in range(height):
+        for y in range(depth):
+            for x in range(width):
+                if (x, y, z) not in outsideCubes and (x, y, z) not in visibleCubes:
+                    hiddenCubes.add((x, y, z))
+    del outsideCubes
+    hiddenOpaqueCubeCnt = len(usedCubes) - len(visibleCubes)
+
+    print("// opaque cubes defined:", len(usedCubes))
+    print("// opaque cubes visible:", len(visibleCubes))
+    print("// opaque cubes hidden:",  hiddenOpaqueCubeCnt)
     print(
-        f"// model size in cubes: {width=}, {depth=}, {height=}, "
-        f"volume={len(usedCubes)}"
+        "// transparent cubes hidden:", len(hiddenCubes) - hiddenOpaqueCubeCnt
     )
     print(
         "// is the model left-right symmetric:",
         ("yes" if have_cubes_x_symmetry(usedCubes, width) else "no")
     )
-    print("// hidden cubes (all faces touch other cubes):", hiddenCubeCnt)
 
     startTime = time.time()
-    if optimiseCuboids:
+    if optimisationLevel == 2:
+        print("// optimisation level: 2 (full)")
+        # mark hidden cubes as the "don't care" colour
+        for (x, y, z) in hiddenCubes:
+            usedCubes[(x, y, z)] = DONT_CARE_COLOUR_INDEX
         cuboids = list(cubes_to_cuboids(usedCubes))
     else:
+        if optimisationLevel == 1:
+            print("// optimisation level: 1 (only delete hidden cubes)")
+            for (x, y, z) in hiddenCubes:
+                del usedCubes[(x, y, z)]
+        else:
+            print("// optimisation level: 0 (none)")
         cuboids = list(cubes_to_cuboids_unoptimised(usedCubes))
     print(
         f"// optimised model to {len(cuboids)} cuboids in "
