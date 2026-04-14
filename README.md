@@ -49,13 +49,16 @@ Note: all arguments except *axesToMirror* are required.
 ## voxel2scad.py
 Converts a voxel file into an OpenSCAD file (`.scad`). Does not require Pillow.
 
-Command line arguments: *inputFile combineColours optimisationLevel*
+Command line arguments: *inputFile combineColours optimisationLevel allowHiddenCubeOverlap*
 * *inputFile*: The voxel file to read. Required. See "voxel files" below.
-* *combineColours*: Make all non-transparent cubes black? Optional. `0`=no (default), `1`=yes.
+* *combineColours*: Make all non-transparent cubes black? Optional. 0=no (default), 1=yes.
 * *optimisationLevel*: Optimisation level. Optional.
   * 0 = none
   * 1 = only remove hidden cubes
-  * 2 = full (combine cubes into larger cuboids; slow, default; works more efficiently if *combineColours*=1)
+  * 2 = full (combine cubes into larger cuboids; slow, the default)
+* *allowHiddenCubeOverlap*: Are hidden cubes allowed to overlap? Optional. 0=no, 1=yes (default).
+  * Has no effect on optimisation levels less than 2.
+  * 1 usually reduces the number of cuboids but editing the SCAD file may be more difficult.
 
 Prints the output data to `stdout` (screen).
 
