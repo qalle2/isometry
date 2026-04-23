@@ -56,9 +56,12 @@ Command line arguments: *inputFile combineColours optimisationLevel allowHiddenC
   * 0 = none
   * 1 = only remove hidden cubes
   * 2 = full (combine cubes into larger cuboids; slow, the default)
-* *allowHiddenCubeOverlap*: Are hidden cubes allowed to overlap? Optional. 0=no, 1=yes (default).
+* *allowCubeOverlap*: Are cubes allowed to overlap? Optional.
+  * 0 = no
+  * 1 = hidden cubes only
+  * 2 = hidden and visible cubes (default)
   * Has no effect on optimisation levels less than 2.
-  * 1 usually reduces the number of cuboids but editing the SCAD file may be more difficult.
+  * Larger values usually reduce the number of cuboids but editing the SCAD file manually may be more difficult.
 
 Prints the output data to `stdout` (screen).
 
