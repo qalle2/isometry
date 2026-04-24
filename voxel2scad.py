@@ -1,11 +1,44 @@
 # Convert a voxel file into an OpenSCAD file.
 
-# Litten:
-#   cubeOverlap=0: 105 cuboids, total volume 535
-#   cubeOverlap=1:  92 cuboids, total volume 765
-#   cubeOverlap=2:  83 cuboids, total volume 879
+# Litten (combineColours=0; different values for removeHidden, combineCubes and
+# allowOverlap):
+#     0, 0, any: cuboids=562, totalVolume=562
+#     1, 0, any: cuboids=340, totalVolume=340
+#     1, 1, 0:   cuboids=122, totalVolume=340
+#     1, 1, 1:   cuboids=119, totalVolume=357
+#     0, 1, 0:   cuboids=105, totalVolume=535
+#     0, 1, 1:   cuboids= 83, totalVolume=879
 
 import os, sys, time
+
+# --- the user may change these -----------------------------------------------
+
+# how many spaces of indentation
+INDENT = 4
+
+# colour indexes in input file to (red, green, blue); 0-255 each;
+# index 0 is transparent; palette may be overridden by input file
+DEFAULT_PALETTE = {
+    1: ( 85,  85,  85),  # dark grey
+    2: (255,   0,   0),  # red
+    3: (255, 128,   0),  # orange
+    4: (255, 255,   0),  # yellow
+    5: (  0, 255,   0),  # green
+    6: (  0, 255, 255),  # cyan
+    7: (  0,   0, 255),  # blue
+    8: (255,   0, 255),  # magenta
+    9: (255, 255, 255),  # white
+}
+
+HELP_TEXT = """\
+Convert a voxel file into an OpenSCAD file.
+Arguments: inputFile combineColours removeHidden combineCubes allowOverlap
+The 2nd-5th arguments are optional and can be 0 (no) or 1 (yes). Their defaults
+are 0, 0, 1, 1.
+See README.md for details.\
+"""
+
+# --- the user should not change these ----------------------------------------
 
 # index of the "don't care" colour (optimised to transparent or any colour)
 DONT_CARE_COLOUR = -1
@@ -13,18 +46,6 @@ DONT_CARE_COLOUR = -1
 TRANSPARENT_COLOUR = 0
 # what colour index to combine opaque colours into
 COMBINED_COLOUR = 1
-
-DEFAULT_PALETTE = [
-    ( 85,  85,  85),  # 1: dark grey
-    (255,   0,   0),  # 2: red
-    (255, 128,   0),  # 3: orange
-    (255, 255,   0),  # 4: yellow
-    (  0, 255,   0),  # 5: green
-    (  0, 255, 255),  # 6: cyan
-    (  0,   0, 255),  # 7: blue
-    (255,   0, 255),  # 8: magenta
-    (255, 255, 255),  # 9: white
-]
 
 # --- helper functions --------------------------------------------------------
 
@@ -62,11 +83,44 @@ def get_lines(filename):
 
 # -----------------------------------------------------------------------------
 
+def parse_arguments():
+    # parse command line arguments
+
+    if not 2 <= len(sys.argv) <= 6:
+        sys.exit(HELP_TEXT)
+    inputFile = sys.argv[1]
+    if not os.path.isfile(inputFile):
+        sys.exit("Input file not found.")
+
+    if len(sys.argv) >= 3:
+        combineColours = bool(decode_int(sys.argv[2], 0, 1, "combineColours"))
+    else:
+        combineColours = False
+
+    if len(sys.argv) >= 4:
+        removeHidden = bool(decode_int(sys.argv[3], 0, 1, "removeHidden"))
+    else:
+        removeHidden = False
+
+    if len(sys.argv) >= 5:
+        combineCubes = bool(decode_int(sys.argv[4], 0, 1, "combineCubes"))
+    else:
+        combineCubes = True
+
+    if len(sys.argv) >= 6:
+        allowOverlap = bool(decode_int(sys.argv[5], 0, 1, "allowOverlap"))
+    else:
+        allowOverlap = True
+
+    return (
+        inputFile, combineColours, removeHidden, combineCubes, allowOverlap
+    )
+
 def get_object_properties(inputFile):
     # read properties of object from input file;
     # return (width, depth, height, palette);
     #     the first 3 are in cubes;
-    #     palette has (red, green, blue) for indexes 1-9
+    #     palette: {1: (R,G,B), ..., 9: (R,G,B)}
 
     width = depth = height = None
     palette = DEFAULT_PALETTE.copy()
@@ -81,7 +135,7 @@ def get_object_properties(inputFile):
         elif line.upper().startswith("C"):
             index_ = decode_int(line[1], 0, 9, "colour index")
             if index_ > 0:
-                palette[index_-1] = decode_colour_code(line[2:])
+                palette[index_] = decode_colour_code(line[2:])
         elif (
                 not line.startswith("B")  # legacy command for C0...
             and not line.startswith("|")
@@ -306,17 +360,17 @@ def get_largest_solid_cuboid(cubes, freedCubes, volumeLimit):
 
     return (bestX, bestY, bestZ)
 
-def cubes_to_cuboids(cubes, cubeOverlap):
+def cubes_to_cuboids(cubes, allowOverlap):
     # combine unit cubes into larger rectangular cuboids
     # cubes: opaque cubes: {(x, y, z): colourIndex, ...}; modified in-place
-    # cubeOverlap: int
+    # allowOverlap: bool
     # generate: (x, y, z, width, depth, height, colourIndex) per call
 
     # largest cuboid found so far (0=none)
     volumeLimit = 0
 
     # visible (opaque) cubes freed; may be overlapped with the same colour
-    # or not; only if cubeOverlap=2; {(x, y, z): colourIndex, ...}
+    # or not; only if allowOverlap; {(x, y, z): colourIndex, ...}
     freedCubes = {}
 
     while True:
@@ -342,13 +396,9 @@ def cubes_to_cuboids(cubes, cubeOverlap):
         for z2 in range(z, z + height):
             for y2 in range(y, y + depth):
                 for x2 in range(x, x + width):
-                    if cubeOverlap == 0 or (
-                        cubeOverlap == 1
-                        and cubes[(x2, y2, z2)] != DONT_CARE_COLOUR
-                    ):
-                        cubes.pop((x2, y2, z2))
-                    elif cubeOverlap == 2 and (x2, y2, z2) in cubes:
-                        freedCubes[(x2, y2, z2)] = cubes[(x2, y2, z2)]
+                    if not allowOverlap or (x2, y2, z2) in cubes:
+                        if allowOverlap:
+                            freedCubes[(x2, y2, z2)] = cubes[(x2, y2, z2)]
                         cubes.pop((x2, y2, z2))
 
         # exit if no colours besides "don't care"
@@ -364,110 +414,82 @@ def cubes_to_cuboids_unoptimised(cubes):
         yield (x, y, z, 1, 1, 1, cubes[(x, y, z)])
 
 def print_colour_definitions(indexesUsed, palette):
+    # print colour definitions in OpenSCAD format
     # indexesUsed: distinct opaque colour indexes used by object data
-    # palette: list with (red, green, blue) for colour indexes 1-9
+    # palette: {1: (R,G,B), ..., 9: (R,G,B)}
 
-    for (ind, (red, green, blue)) in enumerate(palette):
-        if ind + 1 in indexesUsed:
-            print("COL{} = [{:3}/255,{:3}/255,{:3}/255];".format(
-                ind + 1, red, green, blue
-            ))
+    for ind in sorted(palette):
+        if ind in indexesUsed:
+            (red, green, blue) = palette[ind]
+            print(f"COL{ind} = [{red:3}/255,{green:3}/255,{blue:3}/255];")
 
-def print_cube_data(cuboids, totalWidth, totalDepth, totalHeight):
+def print_cuboid_data(cuboids, totalWidth, totalDepth, totalHeight):
+    # print cuboid definitions in OpenSCAD format
     # cuboids: [(x, y, z, width, depth, height, colourIndex), ...]
     # X coordinates have already been centred around 0
 
-    # scale (Nanoblock are 4/3 as tall as wide or long)
-    # and translate (centre cuboids around Y=0 and Z=0)
+    # note: the width:depth:height ratio of Nanoblocks seems to be 3:3:4 but we
+    # use 1:1:1 anyway
+
+    # centre cuboids around Y=0 and Z=0
     yOffset = -(totalDepth  - 1) / 2
     zOffset = -(totalHeight - 1) / 2
-    print(f"scale([1,1,4/3]) translate([0,{yOffset},{zOffset}]) {{")
+    print(f"translate([0,{yOffset},{zOffset}]) {{")
 
     # sort
     cuboids.sort(key=lambda c: c[0])  # by X
     cuboids.sort(key=lambda c: c[1])  # by Y
     cuboids.sort(key=lambda c: c[2])  # by Z
-    # first X=0, then X<0, then X>0
-    cuboids.sort(key=lambda c: (0 if c[0] == 0 else (1 if c[0] < 0 else 2)))
+    cuboids.sort(key=lambda c: c[6])  # by colour
 
-    prevX = None
+    prevColour = None
 
     for (x, y, z, w, d, h, colourIndex) in cuboids:
-        if x == 0 and prevX is None:
-            print(f"{'':4}// X = 0, by ascending Z")
-        elif x < 0 and (prevX is None or prevX == 0):
-            print()
-            print(f"{'':4}// X < 0, by ascending Z")
-        elif x > 0 and (prevX is None or prevX < 0):
-            print()
-            print(f"{'':4}// X > 0, by ascending Z")
-        #
-        print(
-            f"{'':4}color(COL{colourIndex}) "
-            f"translate([{x:5},{y:4},{z:4}]) "
-            "cuboid("
-            + ("" if max(w, d, h) == 1 else f"{w:2},{d:2},{h:2}")
-            + ");"
-        )
-        #
-        prevX = x
+        if prevColour is None or colourIndex != prevColour:
+            if prevColour is not None:
+                print(f"{INDENT*' '}}}")  # end previous color()
+            # start new color()
+            print(f"{INDENT*' '}color(COL{colourIndex}) {{")
+            prevColour = colourIndex
 
-    print("}")  # end translate() and scale()
+        sizeArgs = []
+        if w > 1 or d > 1 or h > 1:
+            sizeArgs.append(f"{w:2}")
+        if d > 1 or h > 1:
+            sizeArgs.append(f"{d:2}")
+        if h > 1:
+            sizeArgs.append(f"{h:2}")
+        sizeArg = ",".join(sizeArgs)
+        print(
+            f"{2*INDENT*' '}translate([{x:5},{y:4},{z:4}]) cuboid({sizeArg});"
+        )
+
+    if prevColour is not None:
+        print(f"{INDENT*' '}}}")  # end the last color()
+    print("}")  # end translate()
 
 def main():
-    # parse args
-    if not 2 <= len(sys.argv) <= 5:
-        sys.exit(
-            "Convert a voxel file into an OpenSCAD file. "
-            "Arguments: inputFile combineColours optimisationLevel "
-            "cubeOverlap. "
-            "combineColours: 0 or 1, default=0. "
-            "optimisationLevel: 0-2, default=2. "
-            "cubeOverlap: 0-2, default=2. "
-            "See README.md for details."
-        )
-    inputFile = sys.argv[1]
-    if not os.path.isfile(inputFile):
-        sys.exit("Input file not found.")
-
-    if len(sys.argv) >= 3:
-        combineColours = bool(decode_int(sys.argv[2], 0, 1, "combineColours"))
-    else:
-        combineColours = False
-    if len(sys.argv) >= 4:
-        optimisationLevel = decode_int(sys.argv[3], 0, 2, "optimisationLevel")
-    else:
-        optimisationLevel = 2
-    if len(sys.argv) >= 5:
-        cubeOverlap = decode_int(sys.argv[4], 0, 2, "cubeOverlap")
-    else:
-        cubeOverlap = 2
+    (
+        inputFile, combineColours, removeHidden, combineCubes, allowOverlap
+    ) = parse_arguments()
 
     (width, depth, height, palette) = get_object_properties(inputFile)
 
-    # get object data (colours of building blocks)
+    # get object data (colour indexes of all cubes, transparent or opaque)
     objData = list(get_object_data(inputFile))
     print("// model read:", os.path.basename(inputFile))
     if max(len(l) for l in objData) > width:
         sys.exit(f"Can't have more than {width} characters after '|'.")
     if len(objData) != height * depth:
         sys.exit(f"Must have {height*depth} lines starting with '|'.")
-    if max((max(l) if l else 0) for l in objData) > len(palette):
-        sys.exit(
-            f"Can't have colour numbers greater than {len(palette)}."
-        )
 
     print(f"// size in cubes: {width=}, {depth=}, {height=}")
 
-    # wrap each layer in its own tuple to get a tuple of tuples of tuples
-    objData = tuple(
-        tuple(objData[i:i+depth]) for i in range(0, height * depth, depth)
-    )
-
     # convert object data into a dict
     opaqueCubes = dict()  # {(x, y, z): colour, ...}
-    for (z, layer) in enumerate(objData):
-        for (y, row) in enumerate(layer):
+    for z in range(height):
+        for y in range(depth):
+            row = objData[z*depth+y]
             for (x, colour) in enumerate(row):
                 if colour != TRANSPARENT_COLOUR:
                     opaqueCubes[(x, y, z)] = colour
@@ -480,7 +502,7 @@ def main():
     )
 
     print(
-        "// make all opaque colours black:",
+        "// make all opaque colours the same colour:",
         ("yes" if combineColours else "no")
     )
     if combineColours:
@@ -496,7 +518,7 @@ def main():
         len(set(opaqueCubes.values()))
     )
     print(
-        "// is the model left-right symmetric:",
+        "// model has left-right symmetry:",
         ("yes" if have_cubes_x_symmetry(opaqueCubes, width) else "no")
     )
 
@@ -524,35 +546,40 @@ def main():
     del outsideCubes
     hiddenOpaqueCubeCnt = len(opaqueCubes) - len(visibleCubes)
 
-    print("// opaque cubes defined:", len(opaqueCubes))
-    print("// opaque cubes visible:", len(visibleCubes))
-    print("// opaque cubes hidden:",  hiddenOpaqueCubeCnt)
+    print("// defined opaque cubes:", len(opaqueCubes))
+    print("// visible opaque cubes:", len(visibleCubes))
+    print("// hidden opaque cubes:",  hiddenOpaqueCubeCnt)
     print(
-        "// transparent cubes hidden:", len(hiddenCubes) - hiddenOpaqueCubeCnt
+        "// hidden transparent cubes:", len(hiddenCubes) - hiddenOpaqueCubeCnt
     )
 
     startTime = time.time()
-    if optimisationLevel == 2:
-        print("// optimisation level: 2 (full)")
-        print(
-            "// allow overlapping cubes:", {
-                0: "no",
-                1: "hidden only",
-                2: "hidden&visible",
-            }[cubeOverlap]
+
+    print("// remove hidden cubes:", ("yes" if removeHidden else "no"))
+    print("// combine cubes into cuboids:", ("yes" if combineCubes else "no"))
+
+    if removeHidden:
+        # delete hidden cubes
+        opaqueCubes = dict(
+            (pos, opaqueCubes[pos])
+            for pos in set(opaqueCubes) - hiddenCubes
         )
+    elif combineCubes:
         # mark hidden cubes as the "don't care" colour
-        for (x, y, z) in hiddenCubes:
-            opaqueCubes[(x, y, z)] = DONT_CARE_COLOUR
-        cuboids = list(cubes_to_cuboids(opaqueCubes, cubeOverlap))
-    else:
-        if optimisationLevel == 1:
-            print("// optimisation level: 1 (only delete hidden cubes)")
-            for (x, y, z) in hiddenCubes:
-                del opaqueCubes[(x, y, z)]
-        else:
-            print("// optimisation level: 0 (none)")
+        opaqueCubes = dict(
+            (
+                pos,
+                (DONT_CARE_COLOUR if pos in hiddenCubes else opaqueCubes[pos])
+            ) for pos in opaqueCubes
+        )
+
+    if not combineCubes:
+        # each cube becomes a cuboid
         cuboids = list(cubes_to_cuboids_unoptimised(opaqueCubes))
+    else:
+        print("// allow overlapping cubes:", ("yes" if allowOverlap else "no"))
+        cuboids = list(cubes_to_cuboids(opaqueCubes, allowOverlap))
+
     print(
         f"// optimised model to {len(cuboids)} cuboids in "
         f"{time.time()-startTime:.1f} seconds"
@@ -574,7 +601,7 @@ def main():
         (-x, y, z, w, d, h, c) in cuboids for (x, y, z, w, d, h, c) in cuboids
     )
     print(
-        "// is the set of optimised cuboids left-right symmetric:",
+        "// set of optimised cuboids has left-right symmetry:",
         ("yes" if hasCuboidXSymmetry else "no")
     )
     print()
@@ -583,9 +610,9 @@ def main():
     print_colour_definitions(frozenset(c[6] for c in cuboids), palette)
     print()
     print("module cuboid(w=1, d=1, h=1) {")
-    print(f"{'':4}cube([w,d,h], center=true);")
+    print(f"{INDENT*' '}cube([w,d,h], center=true);")
     print("}")
     print()
-    print_cube_data(cuboids, width, depth, height)
+    print_cuboid_data(cuboids, width, depth, height)
 
 main()
