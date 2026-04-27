@@ -10,6 +10,7 @@
 #     0, 1, 1:   cuboids= 83, totalVolume=879
 
 import os, sys, time
+from itertools import product
 
 # --- the user may change these -----------------------------------------------
 
@@ -49,16 +50,21 @@ COMBINED_COLOUR = 1
 
 # --- helper functions --------------------------------------------------------
 
-def decode_int(stri, min_, max_, name):
-    # decode an integer
+def decode_int(stri, min_, max_, descr):
+    # decode a string to an integer
 
     try:
         i = int(stri, 10)
         if not min_ <= i <= max_:
             raise ValueError
     except ValueError:
-        sys.exit(f"{name} must be an integer between {min_} and {max_}")
+        sys.exit(f"{descr} must be an integer between {min_} and {max_}.")
     return i
+
+def decode_bool(stri, descr):
+    # decode "0" to False and "1" to True
+
+    return bool(decode_int(stri, 0, 1, descr))
 
 def decode_colour_code(colour):
     # decode a hexadecimal RRGGBB colour code into (red, green, blue)
@@ -93,22 +99,22 @@ def parse_arguments():
         sys.exit("Input file not found.")
 
     if len(sys.argv) >= 3:
-        combineColours = bool(decode_int(sys.argv[2], 0, 1, "combineColours"))
+        combineColours = decode_bool(sys.argv[2], "combineColours")
     else:
         combineColours = False
 
     if len(sys.argv) >= 4:
-        removeHidden = bool(decode_int(sys.argv[3], 0, 1, "removeHidden"))
+        removeHidden = decode_bool(sys.argv[3], "removeHidden")
     else:
         removeHidden = False
 
     if len(sys.argv) >= 5:
-        combineCubes = bool(decode_int(sys.argv[4], 0, 1, "combineCubes"))
+        combineCubes = decode_bool(sys.argv[4], "combineCubes")
     else:
         combineCubes = True
 
     if len(sys.argv) >= 6:
-        allowOverlap = bool(decode_int(sys.argv[5], 0, 1, "allowOverlap"))
+        allowOverlap = decode_bool(sys.argv[5], "allowOverlap")
     else:
         allowOverlap = True
 
@@ -126,13 +132,14 @@ def get_object_properties(inputFile):
     palette = DEFAULT_PALETTE.copy()
 
     for line in get_lines(inputFile):
-        if line.upper().startswith("W"):
+        line = line.upper()
+        if line.startswith("W"):
             width = decode_int(line[1:], 1, 256, "object width")
-        elif line.upper().startswith("D"):
+        elif line.startswith("D"):
             depth = decode_int(line[1:], 1, 256, "object depth")
-        elif line.upper().startswith("H"):
+        elif line.startswith("H"):
             height = decode_int(line[1:], 1, 256, "object height")
-        elif line.upper().startswith("C"):
+        elif line.startswith("C"):
             index_ = decode_int(line[1], 0, 9, "colour index")
             if index_ > 0:
                 palette[index_] = decode_colour_code(line[2:])
@@ -143,7 +150,7 @@ def get_object_properties(inputFile):
         ):
             sys.exit("Syntax error: " + line)
 
-    if any(v is None for v in (width, depth, height)):
+    if width is None or depth is None or height is None:
         sys.exit("Must define width, depth and height.")
 
     return (width, depth, height, palette)
@@ -175,48 +182,42 @@ def have_cubes_x_symmetry(cubes, width):
 def get_outside_cubes(opaqueCubes, width, depth, height):
     # opaqueCubes: set-like with (x, y, z) of each opaque cube in the object
     # width, depth, height: size of object in cubes
-    # return: set with (x, y, z) of each (transparent) outside cube
+    # return: set with (x, y, z) of each (transparent) cube outside the object
 
-    # algorithm: orthogonal flood fill using 1 cube of transparent padding on
-    # each side of the object
+    # initialise with all transparent face/edge/corner cubes
+    # (at least one of X, Y, Z is minimum or maximum)
+    outsideCubes  = set(product((0, width - 1), range(depth), range(height)))
+    outsideCubes.update(product(range(width), (0, depth - 1), range(height)))
+    outsideCubes.update(product(range(width), range(depth), (0, height - 1)))
 
-    # start from two opposite corners for speed
-    outsideCubes = set(( (-1, -1, -1), (width, depth, height) ))
+    # remove opaque cubes
+    outsideCubes.difference_update(opaqueCubes)
 
+    # use orthogonal flood fill to select adjacent transparent cubes
     while True:
-        newCubes   = set()              # new outside cubes
-        oldCubeCnt = len(outsideCubes)  # old outside cube count
+        newOutsideCubes = set()
         # for each known outside cube, add transparent orthogonal neighbours
         for (x, y, z) in outsideCubes:
             for offset in (-1, 1):
                 neighX = x + offset
                 neighY = y + offset
                 neighZ = z + offset
-                if -1 <= neighX <= width and (neighX, y, z) not in opaqueCubes:
-                    newCubes.add((neighX, y, z))
-                if -1 <= neighY <= depth and (x, neighY, z) not in opaqueCubes:
-                    newCubes.add((x, neighY, z))
-                if (
-                    -1 <= neighZ <= height
-                    and (x, y, neighZ) not in opaqueCubes
-                ):
-                    newCubes.add((x, y, neighZ))
-        outsideCubes.update(newCubes)
-        if len(outsideCubes) == oldCubeCnt:
+                if 0 <= neighX < width and (neighX, y, z) not in opaqueCubes:
+                    newOutsideCubes.add((neighX, y, z))
+                if 0 <= neighY < depth and (x, neighY, z) not in opaqueCubes:
+                    newOutsideCubes.add((x, neighY, z))
+                if 0 <= neighZ < height and (x, y, neighZ) not in opaqueCubes:
+                    newOutsideCubes.add((x, y, neighZ))
+        #
+        oldCnt = len(outsideCubes)
+        outsideCubes.update(newOutsideCubes)
+        if len(outsideCubes) == oldCnt:
             break
-
-    # remove cubes that belong in the transparent padding
-    outsideCubes = set(
-        (x, y, z) for (x, y, z) in outsideCubes if
-            0 <= x < width
-        and 0 <= y < depth
-        and 0 <= z < height
-    )
 
     return outsideCubes
 
 def get_visible_cubes(opaqueCubes, outsideCubes, width, depth, height):
-    # opaqueCubes: set-like with (x, y, z) of each opaque cube in the object
+    # opaqueCubes:  set-like with (x, y, z) of each opaque cube in the object
     # outsideCubes: set-like with (x, y, z) of each transparent cube outside
     #               the object
     # width, depth, height: size of object in cubes
@@ -238,8 +239,7 @@ def get_visible_cubes(opaqueCubes, outsideCubes, width, depth, height):
             (x,     y,     z + 1),
         ))
         if (
-               min(x, y, z) == 0
-            or x in (0, width  - 1)
+               x in (0, width  - 1)
             or y in (0, depth  - 1)
             or z in (0, height - 1)
             or neighbours & outsideCubes
@@ -421,7 +421,11 @@ def print_colour_definitions(indexesUsed, palette):
     for ind in sorted(palette):
         if ind in indexesUsed:
             (red, green, blue) = palette[ind]
-            print(f"COL{ind} = [{red:3}/255,{green:3}/255,{blue:3}/255];")
+            print(
+                f"COL{ind} = ["
+                + ",".join(format(c / 255, ".2f") for c in (red, green, blue))
+                + "];"
+            )
 
 def print_cuboid_data(cuboids, totalWidth, totalDepth, totalHeight):
     # print cuboid definitions in OpenSCAD format
