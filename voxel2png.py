@@ -11,75 +11,50 @@ MARGIN_HORZ = 8
 MARGIN_VERT = 8
 
 # number of colours in block files, excluding colour #0 (transparent)
-COLOUR_COUNT = 9
+COLOUR_COUNT = 5
 
 # key:   (fine_Z_rotation, fine_X_rotation)       from command line
 # value: (width1, width2, depth1, depth2, height) of a block
 FINE_ROTATION_TO_BLOCK_SIZE = {
-    (0, 0): (8, 0, 0, 0, 8),
-    (1, 0): (7, 3, 0, 0, 8),
-    (2, 0): (6, 6, 0, 0, 8),
-    (3, 0): (3, 7, 0, 0, 8),
-    (0, 2): (8, 0, 6, 0, 6),
-    (1, 2): (7, 3, 4, 2, 6),
-    (2, 2): (6, 6, 3, 3, 6),
-    (3, 2): (3, 7, 2, 4, 6),
-    # for "blocks-large.png"
-    #(0, 0): (20, 0,  0, 0, 20),
-    #(1, 0): (18, 8,  0, 0, 20),
-    #(2, 0): (14,14,  0, 0, 20),
-    #(3, 0): ( 8,18,  0, 0, 20),
-    #(0, 2): (20, 0, 14, 0, 14),
-    #(1, 2): (18, 8, 12, 4, 15),
-    #(2, 2): (14,14,  8, 9, 17),
-    #(3, 2): ( 8,18,  4,12, 15),
+    (0, 0): (20, 0,  0, 0, 20),
+    (1, 0): (18, 8,  0, 0, 20),
+    (2, 0): (14,14,  0, 0, 20),
+    (3, 0): ( 8,18,  0, 0, 20),
+    (0, 2): (20, 0, 14, 0, 14),
+    (1, 2): (18, 8, 12, 4, 15),
+    (2, 2): (14,14,  8, 8, 16),  # TODO: fix
+    (3, 2): ( 8,18,  4,12, 15),
 }
 
 # key:   (width1, width2, depth1, depth2, height) of a block
 # value: (column, row)                            in block file
 BLOCK_FILE_BLOCKSETS = {
-    (8, 0, 0, 0, 8): (0, 1),
-    (7, 3, 0, 0, 8): (1, 1),
-    (6, 6, 0, 0, 8): (2, 1),
-    (3, 7, 0, 0, 8): (3, 1),
-    (8, 0, 6, 0, 6): (0, 0),
-    (7, 3, 4, 2, 6): (1, 0),
-    (6, 6, 3, 3, 6): (2, 0),
-    (3, 7, 2, 4, 6): (3, 0),
-    # for "blocks-large.png"
-    #(20, 0,  0, 0, 20): (0, 1),
-    #(18, 8,  0, 0, 20): (1, 1),
-    #(14,14,  0, 0, 20): (2, 1),
-    #( 8,18,  0, 0, 20): (3, 1),
-    #(20, 0, 14, 0, 14): (0, 0),
-    #(18, 8, 12, 4, 15): (1, 0),
-    #(14,14,  8, 9, 17): (2, 0),
-    #( 8,18,  4,12, 15): (3, 0),
+    (20, 0,  0, 0, 20): (0, 1),
+    (18, 8,  0, 0, 20): (1, 1),
+    (14,14,  0, 0, 20): (2, 1),
+    ( 8,18,  0, 0, 20): (3, 1),
+    (20, 0, 14, 0, 14): (0, 0),
+    (18, 8, 12, 4, 15): (1, 0),
+    (14,14,  8, 8, 16): (2, 0),  # TODO: fix
+    ( 8,18,  4,12, 15): (3, 0),
 }
 assert set(BLOCK_FILE_BLOCKSETS) == set(FINE_ROTATION_TO_BLOCK_SIZE.values())
 
 BLOCK_FILE_COLUMN_WIDTHS = (  # must include the last column
-     8      * COLOUR_COUNT,
-    (7 + 3) * COLOUR_COUNT,
-    (6 + 6) * COLOUR_COUNT,
-    (3 + 7) * COLOUR_COUNT,
-    # for "blocks-large.png"
-    #(20      + 1) * COLOUR_COUNT,
-    #(18 +  8 + 1) * COLOUR_COUNT,
-    #(14 + 14 + 1) * COLOUR_COUNT,
-    #( 8 + 18 + 1) * COLOUR_COUNT,
+    (20      + 1) * COLOUR_COUNT,
+    (18 +  8 + 1) * COLOUR_COUNT,
+    (14 + 14 + 1) * COLOUR_COUNT,
+    ( 8 + 18 + 1) * COLOUR_COUNT,
 )
 BLOCK_FILE_ROW_HEIGHTS = (  # must include the last row
-    6 + 6,
-    8,
-    # for "blocks-large.png"
-    #34 + 1,
-    #20 + 1,
+    32 + 1,
+    20 + 1,
 )
 
 # read building blocks from here
-BLOCK_FILE = "blocks-small.png"
-#BLOCK_FILE = "blocks-large.png"
+BLOCK_FILE = "blocks-large.png"
+
+BACKGROUND_COLOUR = (255, 255, 255)  # red, green, blue
 
 # --- helper functions --------------------------------------------------------
 
@@ -177,32 +152,29 @@ def parse_args():
 
 def get_object_properties(inputFile):
     # read properties of object from input file;
-    # return a dict (width, depth, height are in blocks;
-    #         background colour is (red, green, blue))
+    # return (width, depth, height) in blocks
 
     width = depth = height = bgColour = None
 
     for line in get_lines(inputFile):
-        if line.upper().startswith("W"):
+        line = line.upper()
+        if line.startswith("W"):
             width = decode_int(line[1:], 1, 256, "object width")
-        elif line.upper().startswith("D"):
+        elif line.startswith("D"):
             depth = decode_int(line[1:], 1, 256, "object depth")
-        elif line.upper().startswith("H"):
+        elif line.startswith("H"):
             height = decode_int(line[1:], 1, 256, "object height")
-        elif line.upper().startswith("B"):
-            bgColour = decode_colour_code(line[1:])
-        elif not line.startswith("|") and not line.startswith("#"):
+        elif not (
+               line.startswith("C")  # unsupported for now
+            or line.startswith("|")
+            or line.startswith("#")
+        ):
             sys.exit("Syntax error: " + line)
 
-    if any(v is None for v in (width, depth, height, bgColour)):
-        sys.exit("Must define width, depth, height and background colour.")
+    if width is None or depth is None or height is None:
+        sys.exit("Must define width, depth and height.")
 
-    return {
-        "width":    width,
-        "depth":    depth,
-        "height":   height,
-        "bgColour": bgColour,
-    }
+    return (width, depth, height)
 
 def get_object_data(inputFile):
     # generate colours of building blocks from input file
@@ -310,6 +282,16 @@ def get_output_image_size(args, objWidth, objDepth, objHeight):
     )
     return (imgWidth, imgHeight)
 
+def validate_block_image(img):
+    # img: block image in Pillow format
+
+    if img.mode != "RGBA":
+        sys.exit(f"Block image must be in RGBA format.")
+    if img.width != sum(BLOCK_FILE_COLUMN_WIDTHS):
+        sys.exit(f"Block image width must be {sum(BLOCK_FILE_COLUMN_WIDTHS)}.")
+    if img.height != sum(BLOCK_FILE_ROW_HEIGHTS):
+        sys.exit(f"Block image height must be {sum(BLOCK_FILE_ROW_HEIGHTS)}.")
+
 def get_coords_type1(width, depth, height):
     # generate 3D coordinates from rear to front for "type 1" blocks
     # (from smallest to largest y+z)
@@ -378,29 +360,22 @@ def main():
     if not os.path.isfile(BLOCK_FILE):
         sys.exit(f"{BLOCK_FILE} not found.")
     args = parse_args()
-    objProps = get_object_properties(args["inputFile"])
+    (width, depth, height) = get_object_properties(args["inputFile"])
 
     # get object data (colours of building blocks)
     objData = list(get_object_data(args["inputFile"]))
-    if max(len(l) for l in objData) > objProps["width"]:
-        sys.exit(
-            f"Can't have more than {objProps['width']} characters after '|'."
-        )
-    if len(objData) != objProps["height"] * objProps["depth"]:
-        sys.exit(
-            f"Must have {objProps['height']*objProps['depth']} lines starting "
-            f"with '|'."
-        )
+    if max(len(l) for l in objData) > width:
+        sys.exit(f"Can't have more than {width} characters after '|'.")
+    if len(objData) != height * depth:
+        sys.exit(f"Must have {height*depth} lines starting with '|'.")
     if max((max(l) if l else 0) for l in objData) > COLOUR_COUNT:
         sys.exit(f"Can't have colour numbers greater than {COLOUR_COUNT}.")
 
     # pad each line of blocks to (object width) integers
-    objData = [l + (objProps["width"] - len(l)) * (0,) for l in objData]
+    objData = [l + (width - len(l)) * (0,) for l in objData]
     # wrap each layer in its own tuple to get a tuple of tuples of tuples
     objData = tuple(
-        tuple(objData[i:i+objProps["depth"]])
-        for i
-        in range(0, objProps["height"] * objProps["depth"], objProps["depth"])
+        tuple(objData[i:i+depth]) for i in range(0, height * depth, depth)
     )
 
     # rotate and mirror object if needed
@@ -409,8 +384,7 @@ def main():
     objDepth  = len(objData[0])
     objHeight = len(objData)
 
-    # these are no longer valid
-    del objProps["width"], objProps["depth"], objProps["height"]
+    del width, depth, height  # no longer valid
 
     (outImgWidth, outImgHeight) = get_output_image_size(
         args, objWidth, objDepth, objHeight
@@ -426,21 +400,17 @@ def main():
     )]
     blkImgX = sum(BLOCK_FILE_COLUMN_WIDTHS[:col])
     blkImgY = sum(BLOCK_FILE_ROW_HEIGHTS[:row])
-    # note: add 1 to these if using "blocks-large.png"
-    blkImgWidth  = args["blkWidth1"] + args["blkWidth2"]
-    blkImgHeight = args["blkDepth1"] + args["blkDepth2"] + args["blkHeight"]
+    blkImgWidth = args["blkWidth1"] + args["blkWidth2"] + 1
+    blkImgHeight = (
+        args["blkDepth1"] + args["blkDepth2"] + args["blkHeight"] + 1
+    )
 
     # copy block images from block file to output image
     try:
         with open(BLOCK_FILE, "rb") as handle:
             handle.seek(0)
             blkImg = Image.open(handle)
-            if blkImg.mode != "RGBA":
-                sys.exit("Block image must be in RGBA format.")
-            if blkImg.width != sum(BLOCK_FILE_COLUMN_WIDTHS):
-                sys.exit("Incorrect width of block file.")
-            if blkImg.height != sum(BLOCK_FILE_ROW_HEIGHTS):
-                sys.exit("Incorrect height of block file.")
+            validate_block_image(blkImg)
 
             # get each colour variant of block image as separate image
             # (does not include colour #0 (transparency))
@@ -453,8 +423,7 @@ def main():
 
             # create output image
             outImg = Image.new(
-                "RGBA", (outImgWidth, outImgHeight),
-                objProps["bgColour"] + (0xff,)
+                "RGBA", (outImgWidth, outImgHeight), BACKGROUND_COLOUR + (255,)
             )
 
             # draw output image
