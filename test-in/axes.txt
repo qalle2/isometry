@@ -1,12 +1,12 @@
 # a long arrow towards +X, a medium arrow towards +Y, a short arrow towards +Z
 
-W9
-D8
-H7
-Baaaaaa
+W10
+D9
+H8
 
 |
-|       4
+|        4
+|
 |
 |
 |
@@ -14,9 +14,10 @@ Baaaaaa
 | 4
 |
 
-|       4
-| 44444444
-| 4     4
+|        4
+| 444444444
+| 4      4
+| 4
 | 4
 | 4
 | 4
@@ -24,7 +25,8 @@ Baaaaaa
 | 4
 
 |
-| 4     4
+| 4      4
+|
 |
 |
 |
@@ -40,9 +42,21 @@ Baaaaaa
 |
 |
 |
+|
 
 |
 | 4
+|
+|
+|
+|
+|
+|
+|
+
+|
+| 4
+|
 |
 |
 |
@@ -58,9 +72,11 @@ Baaaaaa
 |
 |
 |
+|
 
 |
 | 4
+|
 |
 |
 |
