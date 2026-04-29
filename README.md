@@ -10,9 +10,7 @@ Table of contents:
 * [Other files](#other-files)
 
 ## 3D coordinates
-* width: X+ = right and possibly towards viewer
-* depth: Y+ = towards viewer and possibly left
-* height: Z+ = up and possibly towards viewer
+As in OpenSCAD, the Z axis is vertical.
 
 Examples without X rotation and increasing Z rotation from `voxel2png.py`:
 
@@ -24,15 +22,15 @@ Examples with 45-degree X rotation and increasing Z rotation from `voxel2png.py`
 
 Examples of mirroring (none, along X axis, along Y axis, along Z axis) from `voxel2png.py`:
 
-![examples of mirroring with the letter P](mirroring.png)
+![examples of mirroring with the letter P](example-mirroring.png)
 
 ## voxel2png.py
-Renders a voxel file as a PNG image file without perspective. Requires the [Pillow](https://python-pillow.org) module.
+Renders a voxel file as a PNG image file without perspective. Requires the [Pillow](https://pypi.org/project/pillow/) module.
 
 Command line arguments: *inputFile outputFile xRotation yRotation zRotation axesToMirror*
 * *inputFile*: voxel file to read (see "voxel files" below)
-* *outputFile*: image file to write (PNG, RGB without alpha)
-* *xRotation*, *yRotation*, *zRotation*: how much to rotate the object clockwise around each axis:
+* *outputFile*: image file to write (PNG; RGB or RGBA)
+* *xRotation*, *yRotation*, *zRotation*: how much to rotate the object around each axis:
   * unit: 22.5 degrees (1/16 of a full turn)
   * an integer between 0 and 15
   * for *xRotation*, only even numbers are supported
@@ -64,32 +62,30 @@ Prints the output data to `stdout` (screen).
 * Encoding: UTF-8.
 * File extension: `.txt`
 * Case insensitive.
-* On each line, leading whitespace is ignored.
+* On each line, leading and trailing whitespace is ignored.
 * Lines that are ignored:
   * empty lines
   * comments (lines that start with `#`)
 * "Setting" lines:
-  * Each one on its own line.
+  * Each one on its own line, anywhere in the file.
   * Object width in blocks: `W` immediately followed by an integer 1&ndash;256. Required.
   * Object depth in blocks: `D` immediately followed by an integer 1&ndash;256. Required.
   * Object height in blocks: `H` immediately followed by an integer 1&ndash;256. Required.
-  * Redefine colours: `Cirrggbb` where `i` is the index (0 to 9) and `rrggbb` is 6 hexadecimal digits, `000000`&ndash;`ffffff`.
-    Redefining index 0 has no effect when using `voxel2scad.py`. Not implemented yet for `voxel2png.py`. Optional.
-  * `Brrggbb`: define background colour; legacy syntax for `C0rrggbb`; still used and required by `voxel2png.py`.
+  * Redefine colours: `Cirrggbb` where `i` is the index (1 to 9) and `rrggbb` is 6 hexadecimal digits, `000000`&ndash;`ffffff`.
+    Has no effect in `voxel2png.py`. Optional.
 * "Block" lines:
   * Each line describes a slice of *objectWidth*&times;1&times;1 blocks of the object from left to right.
   * Syntax of each line: a pipe (`|`) followed by up to *objectWidth* spaces or digits, plus optionally newline.
-  * A space or a `0` denotes "no block" and `1`&ndash;`9` denotes a block of that colour (see "colour numbers" below).
+  * A space or a `0` denotes "no block" (transparent) and `1`&ndash;`9` denotes a block of that colour (see "colour numbers" below).
   * If there are less than *objectWidth* spaces or digits, the rest of the line is implicitly padded with spaces or zeroes.
   * The number of lines must be *objectHeight*&times;*objectDepth*.
   * Order of lines: first rear to front, then bottom to top. That is, each group of *objectDepth* lines represents a horizontal layer.
 
-An example (a single black block on red background):
+An example (a single black block):
 ```
 W1
 D1
 H1
-Bff0000
 |1
 ```
 
@@ -109,6 +105,6 @@ Colour indexes used in voxel files:
 * 9: white
 
 ## Other files
-`blocks-small.png` contains the building blocks (small cubes); it's read programmatically:
+`blocks.png` contains the building blocks (small cubes); it's read programmatically:
 
-![the building blocks](blocks-small.png)
+![the building blocks](blocks.png)
