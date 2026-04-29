@@ -1,4 +1,6 @@
 # isometry
+*This project has been moved to [Codeberg](https://codeberg.org/qalle/voxel). This version on GitHub will no longer be updated.*
+
 Programs that read a 3D image consisting of small cubes from a "voxel file" (see "voxel files" below) and output a rendered PNG image or an OpenSCAD file.
 
 Table of contents:
